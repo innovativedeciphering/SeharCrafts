@@ -10,6 +10,7 @@ do $$begin
  perform public.place_order('{"name":"Test Customer","email":"test@example.com","phone":"12345678","address":"Test address"}', '[{"product_id":"22222222-2222-4222-8222-222222222222","quantity":2,"unit_price":1}]');
  begin perform public.place_order('{"name":"Test","email":"test@example.com","phone":"12345678","address":"Test address"}', '[{"product_id":"22222222-2222-4222-8222-222222222222","quantity":0}]'); raise exception 'Invalid quantity accepted'; exception when others then if sqlerrm='Invalid quantity accepted' then raise;end if;end;
  begin perform public.place_order('{"name":"Test","email":"test@example.com","phone":"12345678","address":"Test address"}', '[{"product_id":"33333333-3333-4333-8333-333333333333","quantity":1}]'); raise exception 'Hidden product accepted';exception when others then if sqlerrm='Hidden product accepted' then raise;end if;end;
+ begin perform * from public.owner_settings;raise exception 'Anonymous owner email leaked';exception when insufficient_privilege then null;end;
  begin perform * from public.orders;raise exception 'Anonymous order data leaked';exception when insufficient_privilege then null;end;
  begin insert into storage.objects(bucket_id,name) values('product-images','attack.png');raise exception 'Anon upload accepted';exception when insufficient_privilege then null;end;
 end;$$;
@@ -22,12 +23,15 @@ end;$$;
 set role authenticated;
 select set_config('request.jwt.claim.sub','44444444-4444-4444-8444-444444444444',false);
 do $$begin
+ if (select count(*) from public.owner_settings)<>0 then raise exception 'Non-owner read notification email';end if;
  if (select count(*) from public.orders)<>0 then raise exception 'Non-owner read orders';end if;
  update public.orders set status='delivered';
  if found then raise exception 'Non-owner updated orders';end if;
 end;$$;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);
 do $$begin
+ update public.owner_settings set notification_email='owner@example.com' where id=1;
+ if (select notification_email from public.owner_settings where id=1)<>'owner@example.com' then raise exception 'Owner cannot set email';end if;
  if not public.is_owner() then raise exception 'Owner not recognized';end if;
  if (select count(*) from public.orders)<>1 then raise exception 'Owner cannot read order';end if;
  update public.orders set status='confirmed',payment_status='received';

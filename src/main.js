@@ -1,39 +1,564 @@
-import { createClient } from '@supabase/supabase-js';
-import { demoProducts, sampleImage } from './demo.js';
-import { priceOf, totalOf, escapeHtml as e, safeImage } from './domain.js';
-import './style.css';
-const configured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
-const db = configured ? createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY) : null;
-const state = {products: configured ? [] : demoProducts, cart:[], filter:'All', settings:{store_name:'Sehar Crafts',currency:'PKR',payment_details:'Payment instructions will be supplied after the owner confirms your order.',delivery_note:'Delivery charges are confirmed by the owner before payment.'}, orders:[], testimonials:[], delivered:0, ownerSettings:{}, owner:false, displayCurrency:'PKR'};
-const app = document.querySelector('#app');
-const money = value => new Intl.NumberFormat('en-PK',{style:'currency',currency:state.displayCurrency,maximumFractionDigits:state.displayCurrency==='USD'?2:0}).format(state.displayCurrency==='USD'?value/state.settings.usd_rate:value);
-const img = (url, alt, cls='') => `<img class="${cls}" src="${e(safeImage(url))}" alt="${e(alt)}" loading="lazy" onerror="this.style.display='none'">`;
-function toast(message) { const node=document.querySelector('#toast'); node.textContent=message; node.hidden=false; clearTimeout(window.toastTimer); window.toastTimer=setTimeout(()=>node.hidden=true,6000); }
+import { createClient } from "@supabase/supabase-js";
+import { demoProducts, sampleImage } from "./demo.js";
+import { priceOf, totalOf, escapeHtml as e, safeImage } from "./domain.js";
+import "./style.css";
+const configured = Boolean(
+  import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY,
+);
+const db = configured
+  ? createClient(
+      import.meta.env.VITE_SUPABASE_URL,
+      import.meta.env.VITE_SUPABASE_ANON_KEY,
+    )
+  : null;
+const state = {
+  products: configured ? [] : demoProducts,
+  cart: [],
+  filter: "All",
+  settings: {
+    store_name: "Sehar Crafts",
+    currency: "PKR",
+    payment_details:
+      "Payment instructions will be supplied after the owner confirms your order.",
+    delivery_note:
+      "Delivery charges are confirmed by the owner before payment.",
+  },
+  orders: [],
+  testimonials: [],
+  delivered: 0,
+  ownerSettings: {},
+  owner: false,
+  displayCurrency: "PKR",
+};
+const app = document.querySelector("#app");
+const money = (value) =>
+  new Intl.NumberFormat("en-PK", {
+    style: "currency",
+    currency: state.displayCurrency,
+    maximumFractionDigits: state.displayCurrency === "USD" ? 2 : 0,
+  }).format(
+    state.displayCurrency === "USD" ? value / state.settings.usd_rate : value,
+  );
+const img = (url, alt, cls = "") =>
+  `<img class="${cls}" src="${e(safeImage(url))}" alt="${e(alt)}" loading="lazy" onerror="this.style.display='none'">`;
+function toast(message) {
+  const node = document.querySelector("#toast");
+  node.textContent = message;
+  node.hidden = false;
+  clearTimeout(window.toastTimer);
+  window.toastTimer = setTimeout(() => (node.hidden = true), 6000);
+}
 function shell() {
-app.innerHTML=`<div class="announcement">Thoughtfully made. Beautifully yours. <span>Handcrafted with love in every detail</span></div><header><a class="brand" href="#/">sehar<span>CRAFTS & LITTLE JOYS</span></a><nav><a href="#/">Shop collection</a><a href="#story">Our story</a><a href="#/owner">Owner studio</a><select id="display-currency" aria-label="Display currency"><option>PKR</option><option value="USD" ${state.settings.usd_rate?'':'disabled'}>USD estimate</option></select></nav><button class="bag" id="cart">Bag <span id="count">${state.cart.reduce((s,i)=>s+i.quantity,0)}</span></button></header><main id="view"></main><footer><a class="brand" href="#/">sehar<span>MADE BY HAND, KEPT BY HEART.</span></a><p>Handcrafts, home accents & thoughtful gifts.</p><div id="social-links"></div><a href="#/owner">Owner studio ↗</a><small>© ${new Date().getFullYear()} Sehar Crafts</small></footer><button id="chat-open" class="chat-open">✧ Ask Sehar</button><section id="chat" class="chat" hidden><div class="chat-title">Your shopping companion <button id="chat-close" aria-label="Close assistant">×</button></div><p class="muted">Automated store guide · not a live person or AI model</p><div id="chat-log" aria-live="polite"><p>Hello! I can help with products, prices, ordering, delivery, and payment.</p></div><form id="chat-form"><input name="message" aria-label="Message" placeholder="Ask about our collection…" required maxlength="500"><button>Send</button></form></section><dialog id="modal"></dialog><div id="toast" role="status" hidden></div>`;
-document.querySelector('#cart').onclick=showCart;
-document.querySelector('#display-currency').onchange=ev=>{state.displayCurrency=ev.target.value;route().catch(err=>toast(err.message));};
-document.querySelector('#chat-open').onclick=()=>document.querySelector('#chat').hidden=false;
-document.querySelector('#chat-close').onclick=()=>document.querySelector('#chat').hidden=true;
-document.querySelector('#chat-form').onsubmit=event=>{event.preventDefault();const input=event.target.elements.message;const q=input.value;const lower=q.toLowerCase();let answer='Browse the collection and select a product to see its photos and price. Add your favourites to the bag, then send an order request.';if(/pay|bank|transfer/.test(lower))answer=state.settings.payment_details;if(/deliver|ship/.test(lower))answer=state.settings.delivery_note;if(/price|cost|cheap/.test(lower))answer=state.products.map(p=>`${p.name}: ${money(priceOf(p))}`).join(' · ')||'The owner is preparing the collection.';if(/order|status|refund|return/.test(lower))answer='After placing an order, keep your order number. Confirmation and payment checks are handled by the owner. Never send card details in chat.';const log=document.querySelector('#chat-log');log.insertAdjacentHTML('beforeend',`<p class="user-msg">${e(q)}</p><p>${e(answer)}</p>`);input.value='';log.scrollTop=log.scrollHeight;};
+  app.innerHTML = `<div class="announcement">Thoughtfully made. Beautifully yours. <span>Handcrafted with love in every detail</span></div><header><a class="brand" href="#/">sehar<span>CRAFTS & LITTLE JOYS</span></a><nav><a href="#/">Shop collection</a><a href="#story">Our story</a><a href="#/owner">Owner studio</a><select id="display-currency" aria-label="Display currency"><option>PKR</option><option value="USD" ${state.settings.usd_rate ? "" : "disabled"}>USD estimate</option></select></nav><button class="bag" id="cart">Bag <span id="count">${state.cart.reduce((s, i) => s + i.quantity, 0)}</span></button></header><main id="view"></main><footer><a class="brand" href="#/">sehar<span>MADE BY HAND, KEPT BY HEART.</span></a><p>Handcrafts, home accents & thoughtful gifts.</p><div id="social-links"></div><a href="#/owner">Owner studio ↗</a><small>© ${new Date().getFullYear()} Sehar Crafts</small></footer><button id="chat-open" class="chat-open">✧ Ask Sehar</button><section id="chat" class="chat" hidden><div class="chat-title">Your shopping companion <button id="chat-close" aria-label="Close assistant">×</button></div><p class="muted">Automated store guide · not a live person or AI model</p><div id="chat-log" aria-live="polite"><p>Hello! I can help with products, prices, ordering, delivery, and payment.</p></div><form id="chat-form"><input name="message" aria-label="Message" placeholder="Ask about our collection…" required maxlength="500"><button>Send</button></form></section><dialog id="modal"></dialog><div id="toast" role="status" hidden></div>`;
+  document.querySelector("#cart").onclick = showCart;
+  document.querySelector("#display-currency").onchange = (ev) => {
+    state.displayCurrency = ev.target.value;
+    route().catch((err) => toast(err.message));
+  };
+  document.querySelector("#chat-open").onclick = () =>
+    (document.querySelector("#chat").hidden = false);
+  document.querySelector("#chat-close").onclick = () =>
+    (document.querySelector("#chat").hidden = true);
+  document.querySelector("#chat-form").onsubmit = (event) => {
+    event.preventDefault();
+    const input = event.target.elements.message;
+    const q = input.value;
+    const lower = q.toLowerCase();
+    let answer =
+      "Browse the collection and select a product to see its photos and price. Add your favourites to the bag, then send an order request.";
+    if (/pay|bank|transfer/.test(lower))
+      answer = state.settings.payment_details;
+    if (/deliver|ship/.test(lower)) answer = state.settings.delivery_note;
+    if (/price|cost|cheap/.test(lower))
+      answer =
+        state.products
+          .map((p) => `${p.name}: ${money(priceOf(p))}`)
+          .join(" · ") || "The owner is preparing the collection.";
+    if (/order|status|refund|return/.test(lower))
+      answer =
+        "After placing an order, keep your order number. Confirmation and payment checks are handled by the owner. Never send card details in chat.";
+    const log = document.querySelector("#chat-log");
+    log.insertAdjacentHTML(
+      "beforeend",
+      `<p class="user-msg">${e(q)}</p><p>${e(answer)}</p>`,
+    );
+    input.value = "";
+    log.scrollTop = log.scrollHeight;
+  };
 }
-function renderSocials(){document.querySelector('#social-links').innerHTML=['instagram','facebook','tiktok'].map(name=>{const url=state.settings[name+'_url'];return url&&safeImage(url)?`<a href="${e(safeImage(url))}" target="_blank" rel="noopener noreferrer">${name[0].toUpperCase()+name.slice(1)} ↗</a>`:'';}).join(' ');}
+function renderSocials() {
+  document.querySelector("#social-links").innerHTML = [
+    "instagram",
+    "facebook",
+    "tiktok",
+  ]
+    .map((name) => {
+      const url = state.settings[name + "_url"];
+      return url && safeImage(url)
+        ? `<a href="${e(safeImage(url))}" target="_blank" rel="noopener noreferrer">${name[0].toUpperCase() + name.slice(1)} ↗</a>`
+        : "";
+    })
+    .join(" ");
+}
 function storefront() {
-const view=document.querySelector('#view');
-view.innerHTML=`${!configured?'<div class="demo-note">Preview collection · example products with AI-generated collection imagery. Checkout opens after the store is connected.</div>':''}<section class="hero"><div class="hero-copy"><p class="eyebrow">THE BEAUTY OF SOMETHING HANDMADE</p><h1>Little things.<br>Lasting <em>joy.</em></h1><p>Bring warmth to your home and meaning to your gifts. Discover pieces made with care, for moments that matter.</p><a class="primary" href="#collection">Explore the collection <span>↗</span></a><div class="hero-note"><span>✧</span> Made with care. Chosen with love.</div></div><div class="hero-photo">${img(sampleImage,'Illustrative handmade basket, ceramics, candle and wrapped gift')}<span class="photo-label">A little warmth, wherever you call home.</span><div class="round-seal">HANDMADE<br>with love<br>✧</div></div></section><div class="values"><span>✧ Thoughtfully handcrafted</span><span>♧ Small-batch treasures</span><span>♡ Gifts with a personal touch</span></div><section id="collection" class="collection"><div class="section-heading"><div><p class="eyebrow">FIND YOUR LITTLE JOY</p><h2>Made for your everyday.</h2></div><p>Pieces to love. Stories to keep.</p></div><div class="filters">${['All',...new Set(state.products.map(p=>p.category))].map(c=>`<button data-filter="${e(c)}" class="${state.filter===c?'selected':''}">${e(c)}</button>`).join('')}</div><div class="grid">${state.products.filter(p=>state.filter==='All'||p.category===state.filter).map(p=>`<article class="product"><div class="product-photo" tabindex="0" role="button" aria-label="View ${e(p.name)}" data-open="${e(p.id)}">${p.sale_price!=null?'<span class="badge">A little treat · sale</span>':''}${img(p.images[0],p.name)}<button class="quick" data-open="${e(p.id)}">Take a closer look ↗</button>${p.images.length>1?`<button class="card-prev" data-slide="${e(p.id)}:-1" aria-label="Previous product photo">‹</button><button class="card-next" data-slide="${e(p.id)}:1" aria-label="Next product photo">›</button>`:''}</div><div class="product-meta"><span>${e(p.category)}</span><h3><button data-open="${e(p.id)}">${e(p.name)}</button></h3><p>${money(priceOf(p))} ${p.sale_price!=null?`<del>${money(p.price)}</del>`:''}</p></div></article>`).join('')||'<p>The collection is coming soon. Check back for handmade treasures.</p>'}</div></section><section class="story" id="story"><p class="eyebrow">FROM OUR HANDS TO YOUR HOME</p><h2>Crafted slowly.<br><em>Loved for a long time.</em></h2><p>Sehar Crafts is a home for handmade decorations and thoughtful gifts. We believe the smallest details can make a space—and a day—feel special.</p><div class="stat"><strong>${state.delivered}</strong><span>orders delivered${configured?'':' · store not launched yet'}</span></div></section><section class="testimonials"><p class="eyebrow">LITTLE NOTES OF LOVE</p><h2>From our customers</h2><div class="quotes">${state.testimonials.length?state.testimonials.map(t=>`<blockquote>“${e(t.quote)}”<cite>${e(t.name)}</cite></blockquote>`).join(''):'<p>Our story is just beginning. Customer reviews will appear here after the first deliveries.</p>'}</div></section>`;
-view.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{state.filter=b.dataset.filter;storefront();document.querySelector('#collection').scrollIntoView();});
-view.querySelectorAll('[data-open]').forEach(b=>{b.onclick=()=>showProduct(b.dataset.open);if(b.matches('[role=button]'))b.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();showProduct(b.dataset.open);}};});
-view.querySelectorAll('[data-slide]').forEach(b=>b.onclick=ev=>{ev.stopPropagation();const [id,step]=b.dataset.slide.split(':');const p=state.products.find(p=>p.id===id);const image=b.parentElement.querySelector('img');const index=Number(image.dataset.index||0);const next=(index+Number(step)+p.images.length)%p.images.length;image.src=safeImage(p.images[next]);image.style.display='';image.dataset.index=next;});
+  const view = document.querySelector("#view");
+  view.innerHTML = `${!configured ? '<div class="demo-note">Preview collection · example products with AI-generated collection imagery. Checkout opens after the store is connected.</div>' : ""}<section class="hero"><div class="hero-copy"><p class="eyebrow">THE BEAUTY OF SOMETHING HANDMADE</p><h1>Little things.<br>Lasting <em>joy.</em></h1><p>Bring warmth to your home and meaning to your gifts. Discover pieces made with care, for moments that matter.</p><a class="primary" href="#collection">Explore the collection <span>↗</span></a><div class="hero-note"><span>✧</span> Made with care. Chosen with love.</div></div><div class="hero-photo">${img(sampleImage, "Illustrative handmade basket, ceramics, candle and wrapped gift")}<span class="photo-label">A little warmth, wherever you call home.</span><div class="round-seal">HANDMADE<br>with love<br>✧</div></div></section><div class="values"><span>✧ Thoughtfully handcrafted</span><span>♧ Small-batch treasures</span><span>♡ Gifts with a personal touch</span></div><section id="collection" class="collection"><div class="section-heading"><div><p class="eyebrow">FIND YOUR LITTLE JOY</p><h2>Made for your everyday.</h2></div><p>Pieces to love. Stories to keep.</p></div><div class="filters">${["All", ...new Set(state.products.map((p) => p.category))].map((c) => `<button data-filter="${e(c)}" class="${state.filter === c ? "selected" : ""}">${e(c)}</button>`).join("")}</div><div class="grid">${
+    state.products
+      .filter((p) => state.filter === "All" || p.category === state.filter)
+      .map(
+        (p) =>
+          `<article class="product"><div class="product-photo" tabindex="0" role="button" aria-label="View ${e(p.name)}" data-open="${e(p.id)}">${p.sale_price != null ? '<span class="badge">A little treat · sale</span>' : ""}${img(p.images[0], p.name)}<button class="quick" data-open="${e(p.id)}">Take a closer look ↗</button>${p.images.length > 1 ? `<button class="card-prev" data-slide="${e(p.id)}:-1" aria-label="Previous product photo">‹</button><button class="card-next" data-slide="${e(p.id)}:1" aria-label="Next product photo">›</button>` : ""}</div><div class="product-meta"><span>${e(p.category)}</span><h3><button data-open="${e(p.id)}">${e(p.name)}</button></h3><p>${money(priceOf(p))} ${p.sale_price != null ? `<del>${money(p.price)}</del>` : ""}</p></div></article>`,
+      )
+      .join("") ||
+    "<p>The collection is coming soon. Check back for handmade treasures.</p>"
+  }</div></section><section class="story" id="story"><p class="eyebrow">FROM OUR HANDS TO YOUR HOME</p><h2>Crafted slowly.<br><em>Loved for a long time.</em></h2><p>Sehar Crafts is a home for handmade decorations and thoughtful gifts. We believe the smallest details can make a space—and a day—feel special.</p><div class="stat"><strong>${state.delivered}</strong><span>orders delivered${configured ? "" : " · store not launched yet"}</span></div></section><section class="testimonials"><p class="eyebrow">LITTLE NOTES OF LOVE</p><h2>From our customers</h2><div class="quotes">${state.testimonials.length ? state.testimonials.map((t) => `<blockquote>“${e(t.quote)}”<cite>${e(t.name)}</cite></blockquote>`).join("") : "<p>Our story is just beginning. Customer reviews will appear here after the first deliveries.</p>"}</div></section>`;
+  view.querySelectorAll("[data-filter]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        state.filter = b.dataset.filter;
+        storefront();
+        document.querySelector("#collection").scrollIntoView();
+      }),
+  );
+  view.querySelectorAll("[data-open]").forEach((b) => {
+    b.onclick = () => showProduct(b.dataset.open);
+    if (b.matches("[role=button]"))
+      b.onkeydown = (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          showProduct(b.dataset.open);
+        }
+      };
+  });
+  view.querySelectorAll("[data-slide]").forEach(
+    (b) =>
+      (b.onclick = (ev) => {
+        ev.stopPropagation();
+        const [id, step] = b.dataset.slide.split(":");
+        const p = state.products.find((p) => p.id === id);
+        const image = b.parentElement.querySelector("img");
+        const index = Number(image.dataset.index || 0);
+        const next = (index + Number(step) + p.images.length) % p.images.length;
+        image.src = safeImage(p.images[next]);
+        image.style.display = "";
+        image.dataset.index = next;
+      }),
+  );
 }
-function modal(html) {const d=document.querySelector('#modal');if(d.open)d.close();d.innerHTML=`<button class="close" aria-label="Close">×</button>${html}`;d.querySelector('.close').onclick=()=>d.close();d.onclick=ev=>{if(ev.target===d)d.close();};d.showModal();return d;}
-function showProduct(id) {const p=state.products.find(p=>p.id===id);let index=0;let timer;const d=modal(`<div class="product-dialog"><div class="gallery">${img(p.images[0],p.name)}<div class="gallery-controls"><button id="prev" aria-label="Previous image">←</button><span id="position">1 / ${p.images.length}</span><button id="play">Play</button><button id="next" aria-label="Next image">→</button></div></div><div class="detail"><p class="eyebrow">${e(p.category)}</p><h2>${e(p.name)}</h2><p class="price">${money(priceOf(p))} ${p.sale_price!=null?`<del>${money(p.price)}</del>`:''}</p><p>${e(p.description)}</p><p class="offer">${e(p.offer)}</p><label>Quantity <input id="quantity" type="number" value="1" min="1" max="20"></label><button class="primary" id="add">Add to bag ↗</button><p class="muted">${e(state.settings.delivery_note)}</p></div></div>`);const move=step=>{index=(index+step+p.images.length)%p.images.length;d.querySelector('.gallery img').src=safeImage(p.images[index]);d.querySelector('.gallery img').style.display='';d.querySelector('#position').textContent=`${index+1} / ${p.images.length}`;};d.querySelector('#prev').onclick=()=>move(-1);d.querySelector('#next').onclick=()=>move(1);d.querySelector('#play').onclick=ev=>{if(timer){clearInterval(timer);timer=null;ev.target.textContent='Play';}else{timer=setInterval(()=>move(1),3000);ev.target.textContent='Pause';}};d.addEventListener('close',()=>clearInterval(timer),{once:true});d.querySelector('#add').onclick=()=>{const q=Number(d.querySelector('#quantity').value);if(!Number.isInteger(q)||q<1||q>20)return toast('Choose 1–20 items.');const item=state.cart.find(i=>i.id===id);if(item&&item.quantity+q>20)return toast('Maximum 20 of each item per order.');if(item)item.quantity+=q;else state.cart.push({id,quantity:q});document.querySelector('#count').textContent=state.cart.reduce((s,i)=>s+i.quantity,0);d.close();toast('A little joy added to your bag.');};}
-function showCart(){const d=modal(`<h2>Your little joys</h2>${state.cart.length?`<div class="cart-lines">${state.cart.map(item=>{const p=state.products.find(p=>p.id===item.id);return `<div><span>${e(p.name)} × ${item.quantity}</span><strong>${money(priceOf(p)*item.quantity)}</strong><button data-remove="${e(item.id)}" aria-label="Remove ${e(p.name)}">×</button></div>`;}).join('')}</div><h3>Subtotal ${money(totalOf(state.cart,state.products))}</h3><p class="muted">Orders are recorded in PKR. USD figures, when enabled, are estimates using the owner’s published conversion rate.</p><p>${e(state.settings.delivery_note)}</p><form id="checkout"><label>Your name<input name="name" required maxlength="100" autocomplete="name"></label><label>Email<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>Phone<input name="phone" type="tel" required maxlength="30" autocomplete="tel"></label><label>Delivery address<textarea name="address" required maxlength="1000" autocomplete="street-address"></textarea></label><label>Note (optional)<textarea name="note" maxlength="1000"></textarea></label><label class="check"><input name="consent" type="checkbox" required> I agree to use my contact details to process this order.</label><p class="muted">Order requests are subject to owner confirmation. No payment is collected on this page.</p><button class="primary" ${!configured?'disabled':''}>${configured?'Place order request':'Preview only · connect store to order'}</button><p id="checkout-error" role="alert"></p></form>`:'<p>Your bag is waiting for something lovely.</p>'}`);d.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{state.cart=state.cart.filter(i=>i.id!==b.dataset.remove);document.querySelector('#count').textContent=state.cart.reduce((s,i)=>s+i.quantity,0);showCart();});const form=d.querySelector('#checkout');if(form)form.onsubmit=async ev=>{ev.preventDefault();if(!db)return;const button=form.querySelector('button');button.disabled=true;const values=Object.fromEntries(new FormData(form));const {data,error}=await db.rpc('place_order',{customer:{name:values.name,email:values.email,phone:values.phone,address:values.address,note:values.note},items:state.cart.map(i=>({product_id:i.id,quantity:i.quantity}))});if(error){form.querySelector('#checkout-error').textContent='Could not place the order. Please try again. '+error.message;button.disabled=false;return;}state.cart=[];document.querySelector('#count').textContent='0';modal(`<p class="eyebrow">THANK YOU FOR SHOPPING SMALL</p><h2>Your request is in.</h2><p>Order number: <strong>${e(data.order_number)}</strong></p><p>Save this number. Your order is awaiting owner confirmation. An email will arrive if the store has enabled notifications.</p><p>${e(state.settings.payment_details)}</p><p class="muted">Never share a PIN, password, or card security code. Wait for the owner to confirm the final total before paying.</p>`);};}
-async function owner(){const view=document.querySelector('#view');if(!db){view.innerHTML='<section class="studio"><p class="eyebrow">OWNER STUDIO</p><h1>Your creative<br><em>headquarters.</em></h1><p>Connect Supabase to enable secure owner login, photo uploads, product editing, order management, and payment settings.</p><p>See README.md for the deployment checklist. Public visitors cannot use a demo admin account.</p></section>';return;}const {data:{session}}=await db.auth.getSession();if(!session){view.innerHTML='<section class="studio"><p class="eyebrow">OWNER STUDIO</p><h2>Welcome back.</h2><form id="login"><label>Email<input name="email" type="email" required autocomplete="username"></label><label>Password<input name="password" type="password" required autocomplete="current-password"></label><button class="primary">Sign in</button><p id="login-error" role="alert"></p></form></section>';view.querySelector('#login').onsubmit=async ev=>{ev.preventDefault();const v=Object.fromEntries(new FormData(ev.target));const {error}=await db.auth.signInWithPassword(v);if(error)view.querySelector('#login-error').textContent=error.message;else owner();};return;}const {data:allowed,error:authError}=await db.rpc('is_owner');if(authError||!allowed){view.innerHTML='<section class="studio"><h2>Owner access required</h2><button id="logout">Sign out</button></section>';view.querySelector('#logout').onclick=async()=>{await db.auth.signOut();owner();};return;}state.owner=true;const {data:privateSettings,error:settingsError}=await db.from('owner_settings').select('*').eq('id',1).single();if(settingsError)throw settingsError;state.ownerSettings=privateSettings;const {data:orders,error}=await db.from('orders').select('*').order('created_at',{ascending:false}).limit(100);if(error){view.innerHTML=`<section class="studio"><p role="alert">${e(error.message)}</p></section>`;return;}state.orders=orders;const {data:allProducts}=await db.from('products').select('*').order('created_at',{ascending:false});view.innerHTML=`<section class="studio wide"><div class="section-heading"><div><p class="eyebrow">OWNER STUDIO</p><h2>Good things start here.</h2></div><button id="logout">Sign out</button></div><div class="owner-tabs"><button data-tab="orders">Orders (${orders.filter(o=>o.status==='placed').length} new)</button><button data-tab="products">Products</button><button data-tab="settings">Payment & delivery</button><button data-tab="reviews">Testimonials</button><button id="notifications">Enable browser alerts</button></div><p class="muted">Orders refresh every 30 seconds while this dashboard is open. Email alerts require the notification service described in README.</p><div id="panel"></div></section>`;view.querySelector('#logout').onclick=async()=>{clearInterval(window.ownerPoll);await db.auth.signOut();state.owner=false;owner();};view.querySelector('#notifications').onclick=async()=>{if(!('Notification' in window))return toast('Browser notifications are unavailable here.');const permission=await Notification.requestPermission();toast(permission==='granted'?'Browser alerts enabled while the dashboard is open.':'Browser alerts were not enabled.');};view.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>renderPanel(b.dataset.tab,allProducts||[]));renderPanel('orders',allProducts||[]);clearInterval(window.ownerPoll);let latest=orders[0]?.id;window.ownerPoll=setInterval(async()=>{if(!location.hash.startsWith('#/owner'))return;const {data,error}=await db.from('orders').select('*').order('created_at',{ascending:false}).limit(100);if(error||!data)return;if(data[0]&&data[0].id!==latest){toast('A new order has arrived. Open Orders to refresh.');if('Notification'in window&&Notification.permission==='granted')new Notification('Sehar Crafts',{body:'A new order request has arrived.'});}latest=data[0]?.id;state.orders=data;},30000);}
-function renderPanel(tab,products){const panel=document.querySelector('#panel');if(tab==='orders'){panel.innerHTML=`<h3>Latest 100 orders</h3><button id="refresh">Refresh orders</button>${state.orders.map(o=>`<article class="order"><div class="section-heading"><h3>${e(o.order_number)}</h3><span>${e(o.status)} · ${e(o.payment_status)}</span></div><p>${e(o.customer.name)} · ${e(o.customer.email)} · ${e(o.customer.phone)}</p><p>${e(o.customer.address)}</p><p>${e(o.customer.note)}</p><ul>${o.items.map(i=>`<li>${e(i.name)} × ${i.quantity} · ${money(i.unit_price)}</li>`).join('')}</ul><strong>Product subtotal: ${money(o.total)}</strong><p class="muted">Delivery charges must be confirmed separately before requesting payment.</p><label>Order status<select data-status="${o.id}">${['placed','confirmed','dispatched','delivered','cancelled'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}</select></label><label>Payment<select data-payment="${o.id}">${['pending','received','refunded'].map(s=>`<option ${o.payment_status===s?'selected':''}>${s}</option>`).join('')}</select></label></article>`).join('')||'<p>No orders yet.</p>'}`;panel.querySelector('#refresh').onclick=owner;for(const kind of ['status','payment'])panel.querySelectorAll(`[data-${kind}]`).forEach(s=>s.onchange=async()=>{s.disabled=true;const field=kind==='status'?'status':'payment_status';const {error}=await db.from('orders').update({[field]:s.value}).eq('id',s.dataset[kind]);s.disabled=false;if(error){toast(error.message);owner();}else{state.orders.find(o=>o.id===s.dataset[kind])[field]=s.value;toast('Order updated.');}});return;}
-if(tab==='reviews'){panel.innerHTML=`<h3>Publish a customer testimonial</h3><p>Only publish genuine customer feedback with their permission.</p><form id="review-form"><label>Customer display name<input name="name" required maxlength="100"></label><label>Feedback<textarea name="quote" required maxlength="2000"></textarea></label><button class="primary">Publish testimonial</button></form>`;panel.querySelector('form').onsubmit=async ev=>{ev.preventDefault();const values=Object.fromEntries(new FormData(ev.target));const {error}=await db.from('testimonials').insert({...values,published:true});if(error)toast(error.message);else{ev.target.reset();toast('Testimonial published.');}};return;}
-if(tab==='settings'){panel.innerHTML=`<h3>Store information & notifications</h3><form id="settings-form"><label>Owner notification email (private)<input name="notification_email" type="email" maxlength="254" value="${e(state.ownerSettings.notification_email)}" placeholder="Your order alert email" required></label><p class="muted">New-order and order/payment status alerts go here after email delivery is configured. This address is not shown publicly on the storefront.</p>${['instagram','facebook','tiktok'].map(name=>`<label>${name[0].toUpperCase()+name.slice(1)} link (public, optional)<input name="${name}_url" type="url" pattern="https://.*" maxlength="500" value="${e(state.settings[name+'_url'])}" placeholder="https://…"></label>`).join('')}<p>Order currency: PKR. USD is an optional display estimate.</p><label>PKR per 1 USD (optional; update regularly)<input name="usd_rate" type="number" min="0.01" step="0.01" value="${e(state.settings.usd_rate??'')}"></label><label>Payment instructions (public)<textarea name="payment_details" required maxlength="2000">${e(state.settings.payment_details)}</textarea></label><label>Delivery policy<textarea name="delivery_note" required maxlength="2000">${e(state.settings.delivery_note)}</textarea></label><p>Only enter payment receiving information you intend to show publicly. Never enter passwords, PINs, or API keys.</p><button class="primary">Save settings</button></form>`;panel.querySelector('form').onsubmit=async ev=>{ev.preventDefault();const values=Object.fromEntries(new FormData(ev.target));values.usd_rate=values.usd_rate?Number(values.usd_rate):null;const notification_email=values.notification_email;delete values.notification_email;const {error:privateError}=await db.from('owner_settings').update({notification_email}).eq('id',1);if(privateError)return toast(privateError.message);state.ownerSettings.notification_email=notification_email;const {error}=await db.from('store_settings').update(values).eq('id',1);if(error)toast(error.message);else{Object.assign(state.settings,values);if(!values.usd_rate)state.displayCurrency='PKR';document.querySelector('#display-currency option[value=USD]').disabled=!values.usd_rate;renderSocials();toast('Settings saved.');}};return;}
-panel.innerHTML=`<h3>Your collection</h3><div class="product-list">${products.map(p=>`<button data-edit="${e(p.id)}">${e(p.name)} · ${money(priceOf(p))} ${p.active?'':'(hidden)'}</button>`).join('')}</div><h3 id="edit-title">Add a product</h3><form id="product-form"><input type="hidden" name="id"><label>Name<input name="name" required maxlength="150"></label><label>Category<input name="category" required maxlength="60"></label><label>Description<textarea name="description" required maxlength="3000"></textarea></label><div class="form-row"><label>Original price<input name="price" type="number" min="1" step="0.01" required></label><label>Discount price (optional)<input name="sale_price" type="number" min="1" step="0.01"></label></div><label>Offer<input name="offer" maxlength="500"></label><label>Upload photos (JPEG, PNG, WebP; up to 5 MB each)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><label class="check"><input name="active" type="checkbox" checked> Visible in store</label><button class="primary">Save product</button><button type="button" id="new-product">New product</button><p id="product-error" role="alert"></p></form>`;const form=panel.querySelector('form');panel.querySelector('#new-product').onclick=()=>{form.reset();form.elements.id.value='';};panel.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{const p=products.find(p=>p.id===b.dataset.edit);for(const key of ['id','name','category','description','price','sale_price','offer'])form.elements[key].value=p[key]??'';form.elements.active.checked=p.active;panel.querySelector('#edit-title').textContent='Edit product';});form.onsubmit=async ev=>{ev.preventDefault();const button=form.querySelector('button');button.disabled=true;const values=Object.fromEntries(new FormData(form));try{const price=Number(values.price),sale=values.sale_price?Number(values.sale_price):null;if(sale!==null&&sale>=price)throw new Error('Discount price must be lower than the original price.');const files=[...form.elements.photos.files];if(files.length>8)throw new Error('Upload at most 8 images.');if(files.some(f=>!['image/jpeg','image/png','image/webp'].includes(f.type)||f.size>5*1024*1024))throw new Error('Use JPEG, PNG, or WebP images smaller than 5 MB.');let images=products.find(p=>p.id===values.id)?.images||[];if(files.length){const uploaded=[];for(const file of files){const path=`${crypto.randomUUID()}.${file.type.split('/')[1]}`;const {error}=await db.storage.from('product-images').upload(path,file);if(error)throw error;uploaded.push(db.storage.from('product-images').getPublicUrl(path).data.publicUrl);}images=uploaded;}if(!images.length)throw new Error('Add at least one product image.');const payload={name:values.name,category:values.category,description:values.description,price,sale_price:sale,offer:values.offer,images,active:form.elements.active.checked};const query=values.id?db.from('products').update(payload).eq('id',values.id):db.from('products').insert(payload);const {error}=await query;if(error)throw error;await load();await owner();toast('Product saved.');}catch(err){panel.querySelector('#product-error').textContent=err.message;}finally{button.disabled=false;}};}
-async function load(){if(!db)return;const results=await Promise.all([db.from('products').select('*').eq('active',true).order('created_at',{ascending:false}),db.from('store_settings').select('*').eq('id',1).single(),db.from('testimonials').select('name,quote').eq('published',true),db.rpc('delivered_count')]);const failed=results.find(r=>r.error);if(failed)throw new Error('Store connection failed: '+failed.error.message);state.products=results[0].data;state.settings=results[1].data;state.testimonials=results[2].data;state.delivered=results[3].data;renderSocials();document.querySelector('#display-currency option[value=USD]').disabled=!state.settings.usd_rate;}
-async function route(){clearInterval(window.ownerPoll);if(location.hash.startsWith('#/owner'))await owner();else {storefront();if(location.hash==='#story'||location.hash==='#collection')document.querySelector(location.hash)?.scrollIntoView();}}
-shell();try{await load();await route();}catch(err){document.querySelector('#view').innerHTML=`<section class="studio"><h2>We’ll be back shortly.</h2><p role="alert">${e(err.message)}</p><p>Please try again later.</p></section>`;}
-window.addEventListener('hashchange',()=>{route().catch(err=>toast(err.message));});
+function modal(html) {
+  const d = document.querySelector("#modal");
+  if (d.open) d.close();
+  d.innerHTML = `<button class="close" aria-label="Close">×</button>${html}`;
+  d.querySelector(".close").onclick = () => d.close();
+  d.onclick = (ev) => {
+    if (ev.target === d) d.close();
+  };
+  d.showModal();
+  return d;
+}
+function showProduct(id) {
+  const p = state.products.find((p) => p.id === id);
+  let index = 0;
+  let timer;
+  const d = modal(
+    `<div class="product-dialog"><div class="gallery">${img(p.images[0], p.name)}<div class="gallery-controls"><button id="prev" aria-label="Previous image">←</button><span id="position">1 / ${p.images.length}</span><button id="play">Play</button><button id="next" aria-label="Next image">→</button></div></div><div class="detail"><p class="eyebrow">${e(p.category)}</p><h2>${e(p.name)}</h2><p class="price">${money(priceOf(p))} ${p.sale_price != null ? `<del>${money(p.price)}</del>` : ""}</p><p>${e(p.description)}</p><p class="offer">${e(p.offer)}</p><label>Quantity <input id="quantity" type="number" value="1" min="1" max="20"></label><button class="primary" id="add">Add to bag ↗</button><p class="muted">${e(state.settings.delivery_note)}</p></div></div>`,
+  );
+  const move = (step) => {
+    index = (index + step + p.images.length) % p.images.length;
+    d.querySelector(".gallery img").src = safeImage(p.images[index]);
+    d.querySelector(".gallery img").style.display = "";
+    d.querySelector("#position").textContent =
+      `${index + 1} / ${p.images.length}`;
+  };
+  d.querySelector("#prev").onclick = () => move(-1);
+  d.querySelector("#next").onclick = () => move(1);
+  d.querySelector("#play").onclick = (ev) => {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+      ev.target.textContent = "Play";
+    } else {
+      timer = setInterval(() => move(1), 3000);
+      ev.target.textContent = "Pause";
+    }
+  };
+  d.addEventListener("close", () => clearInterval(timer), { once: true });
+  d.querySelector("#add").onclick = () => {
+    const q = Number(d.querySelector("#quantity").value);
+    if (!Number.isInteger(q) || q < 1 || q > 20)
+      return toast("Choose 1–20 items.");
+    const item = state.cart.find((i) => i.id === id);
+    if (item && item.quantity + q > 20)
+      return toast("Maximum 20 of each item per order.");
+    if (item) item.quantity += q;
+    else state.cart.push({ id, quantity: q });
+    document.querySelector("#count").textContent = state.cart.reduce(
+      (s, i) => s + i.quantity,
+      0,
+    );
+    d.close();
+    toast("A little joy added to your bag.");
+  };
+}
+function showCart() {
+  const d = modal(
+    `<h2>Your little joys</h2>${
+      state.cart.length
+        ? `<div class="cart-lines">${state.cart
+            .map((item) => {
+              const p = state.products.find((p) => p.id === item.id);
+              return `<div><span>${e(p.name)} × ${item.quantity}</span><strong>${money(priceOf(p) * item.quantity)}</strong><button data-remove="${e(item.id)}" aria-label="Remove ${e(p.name)}">×</button></div>`;
+            })
+            .join(
+              "",
+            )}</div><h3>Subtotal ${money(totalOf(state.cart, state.products))}</h3><p class="muted">Orders are recorded in PKR. USD figures, when enabled, are estimates using the owner’s published conversion rate.</p><p>${e(state.settings.delivery_note)}</p><form id="checkout"><label>Your name<input name="name" required maxlength="100" autocomplete="name"></label><label>Email<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>Phone<input name="phone" type="tel" required maxlength="30" autocomplete="tel"></label><label>Delivery address<textarea name="address" required maxlength="1000" autocomplete="street-address"></textarea></label><label>Note (optional)<textarea name="note" maxlength="1000"></textarea></label><label class="check"><input name="consent" type="checkbox" required> I agree to use my contact details to process this order.</label><p class="muted">Order requests are subject to owner confirmation. No payment is collected on this page.</p><button class="primary" ${!configured ? "disabled" : ""}>${configured ? "Place order request" : "Preview only · connect store to order"}</button><p id="checkout-error" role="alert"></p></form>`
+        : "<p>Your bag is waiting for something lovely.</p>"
+    }`,
+  );
+  d.querySelectorAll("[data-remove]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        state.cart = state.cart.filter((i) => i.id !== b.dataset.remove);
+        document.querySelector("#count").textContent = state.cart.reduce(
+          (s, i) => s + i.quantity,
+          0,
+        );
+        showCart();
+      }),
+  );
+  const form = d.querySelector("#checkout");
+  if (form)
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      if (!db) return;
+      const button = form.querySelector("button");
+      button.disabled = true;
+      const values = Object.fromEntries(new FormData(form));
+      const { data, error } = await db.rpc("place_order", {
+        customer: {
+          name: values.name,
+          email: values.email,
+          phone: values.phone,
+          address: values.address,
+          note: values.note,
+        },
+        items: state.cart.map((i) => ({
+          product_id: i.id,
+          quantity: i.quantity,
+        })),
+      });
+      if (error) {
+        form.querySelector("#checkout-error").textContent =
+          "Could not place the order. Please try again. " + error.message;
+        button.disabled = false;
+        return;
+      }
+      state.cart = [];
+      document.querySelector("#count").textContent = "0";
+      modal(
+        `<p class="eyebrow">THANK YOU FOR SHOPPING SMALL</p><h2>Your request is in.</h2><p>Order number: <strong>${e(data.order_number)}</strong></p><p>Save this number. Your order is awaiting owner confirmation. An email will arrive if the store has enabled notifications.</p><p>${e(state.settings.payment_details)}</p><p class="muted">Never share a PIN, password, or card security code. Wait for the owner to confirm the final total before paying.</p>`,
+      );
+    };
+}
+async function owner() {
+  const view = document.querySelector("#view");
+  if (!db) {
+    view.innerHTML =
+      '<section class="studio"><p class="eyebrow">OWNER STUDIO</p><h1>Your creative<br><em>headquarters.</em></h1><p>Connect Supabase to enable secure owner login, photo uploads, product editing, order management, and payment settings.</p><p>See README.md for the deployment checklist. Public visitors cannot use a demo admin account.</p></section>';
+    return;
+  }
+  const {
+    data: { session },
+  } = await db.auth.getSession();
+  if (!session) {
+    view.innerHTML =
+      '<section class="studio"><p class="eyebrow">OWNER STUDIO</p><h2>Welcome back.</h2><form id="login"><label>Email<input name="email" type="email" required autocomplete="username"></label><label>Password<input name="password" type="password" required autocomplete="current-password"></label><button class="primary">Sign in</button><p id="login-error" role="alert"></p></form></section>';
+    view.querySelector("#login").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const v = Object.fromEntries(new FormData(ev.target));
+      const { error } = await db.auth.signInWithPassword(v);
+      if (error) view.querySelector("#login-error").textContent = error.message;
+      else owner();
+    };
+    return;
+  }
+  const { data: allowed, error: authError } = await db.rpc("is_owner");
+  if (authError || !allowed) {
+    view.innerHTML =
+      '<section class="studio"><h2>Owner access required</h2><button id="logout">Sign out</button></section>';
+    view.querySelector("#logout").onclick = async () => {
+      await db.auth.signOut();
+      owner();
+    };
+    return;
+  }
+  state.owner = true;
+  const { data: privateSettings, error: settingsError } = await db
+    .from("owner_settings")
+    .select("*")
+    .eq("id", 1)
+    .single();
+  if (settingsError) throw settingsError;
+  state.ownerSettings = privateSettings;
+  const { data: orders, error } = await db
+    .from("orders")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) {
+    view.innerHTML = `<section class="studio"><p role="alert">${e(error.message)}</p></section>`;
+    return;
+  }
+  state.orders = orders;
+  const { data: allProducts } = await db
+    .from("products")
+    .select("*")
+    .order("created_at", { ascending: false });
+  view.innerHTML = `<section class="studio wide"><div class="section-heading"><div><p class="eyebrow">OWNER STUDIO</p><h2>Good things start here.</h2></div><button id="logout">Sign out</button></div><div class="owner-tabs"><button data-tab="orders">Orders (${orders.filter((o) => o.status === "placed").length} new)</button><button data-tab="products">Products</button><button data-tab="settings">Payment & delivery</button><button data-tab="reviews">Testimonials</button><button id="notifications">Enable browser alerts</button></div><p class="muted">Orders refresh every 30 seconds while this dashboard is open. Email alerts require the notification service described in README.</p><div id="panel"></div></section>`;
+  view.querySelector("#logout").onclick = async () => {
+    clearInterval(window.ownerPoll);
+    await db.auth.signOut();
+    state.owner = false;
+    owner();
+  };
+  view.querySelector("#notifications").onclick = async () => {
+    if (!("Notification" in window))
+      return toast("Browser notifications are unavailable here.");
+    const permission = await Notification.requestPermission();
+    toast(
+      permission === "granted"
+        ? "Browser alerts enabled while the dashboard is open."
+        : "Browser alerts were not enabled.",
+    );
+  };
+  view
+    .querySelectorAll("[data-tab]")
+    .forEach(
+      (b) => (b.onclick = () => renderPanel(b.dataset.tab, allProducts || [])),
+    );
+  renderPanel("orders", allProducts || []);
+  clearInterval(window.ownerPoll);
+  let latest = orders[0]?.id;
+  window.ownerPoll = setInterval(async () => {
+    if (!location.hash.startsWith("#/owner")) return;
+    const { data, error } = await db
+      .from("orders")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error || !data) return;
+    if (data[0] && data[0].id !== latest) {
+      toast("A new order has arrived. Open Orders to refresh.");
+      if ("Notification" in window && Notification.permission === "granted")
+        new Notification("Sehar Crafts", {
+          body: "A new order request has arrived.",
+        });
+    }
+    latest = data[0]?.id;
+    state.orders = data;
+  }, 30000);
+}
+function renderPanel(tab, products) {
+  const panel = document.querySelector("#panel");
+  if (tab === "orders") {
+    panel.innerHTML = `<h3>Latest 100 orders</h3><button id="refresh">Refresh orders</button>${state.orders.map((o) => `<article class="order"><div class="section-heading"><h3>${e(o.order_number)}</h3><span>${e(o.status)} · ${e(o.payment_status)}</span></div><p>${e(o.customer.name)} · ${e(o.customer.email)} · ${e(o.customer.phone)}</p><p>${e(o.customer.address)}</p><p>${e(o.customer.note)}</p><ul>${o.items.map((i) => `<li>${e(i.name)} × ${i.quantity} · ${money(i.unit_price)}</li>`).join("")}</ul><strong>Product subtotal: ${money(o.total)}</strong><p class="muted">Delivery charges must be confirmed separately before requesting payment.</p><label>Order status<select data-status="${o.id}">${["placed", "confirmed", "dispatched", "delivered", "cancelled"].map((s) => `<option ${o.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label><label>Payment<select data-payment="${o.id}">${["pending", "received", "refunded"].map((s) => `<option ${o.payment_status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label></article>`).join("") || "<p>No orders yet.</p>"}`;
+    panel.querySelector("#refresh").onclick = owner;
+    for (const kind of ["status", "payment"])
+      panel.querySelectorAll(`[data-${kind}]`).forEach(
+        (s) =>
+          (s.onchange = async () => {
+            s.disabled = true;
+            const field = kind === "status" ? "status" : "payment_status";
+            const { error } = await db
+              .from("orders")
+              .update({ [field]: s.value })
+              .eq("id", s.dataset[kind]);
+            s.disabled = false;
+            if (error) {
+              toast(error.message);
+              owner();
+            } else {
+              state.orders.find((o) => o.id === s.dataset[kind])[field] =
+                s.value;
+              toast("Order updated.");
+            }
+          }),
+      );
+    return;
+  }
+  if (tab === "reviews") {
+    panel.innerHTML = `<h3>Publish a customer testimonial</h3><p>Only publish genuine customer feedback with their permission.</p><form id="review-form"><label>Customer display name<input name="name" required maxlength="100"></label><label>Feedback<textarea name="quote" required maxlength="2000"></textarea></label><button class="primary">Publish testimonial</button></form>`;
+    panel.querySelector("form").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const values = Object.fromEntries(new FormData(ev.target));
+      const { error } = await db
+        .from("testimonials")
+        .insert({ ...values, published: true });
+      if (error) toast(error.message);
+      else {
+        ev.target.reset();
+        toast("Testimonial published.");
+      }
+    };
+    return;
+  }
+  if (tab === "settings") {
+    panel.innerHTML = `<h3>Store information & notifications</h3><form id="settings-form"><label>Owner notification email (private)<input name="notification_email" type="email" maxlength="254" value="${e(state.ownerSettings.notification_email)}" placeholder="Your order alert email" required></label><p class="muted">New-order and order/payment status alerts go here after email delivery is configured. This address is not shown publicly on the storefront.</p>${["instagram", "facebook", "tiktok"].map((name) => `<label>${name[0].toUpperCase() + name.slice(1)} link (public, optional)<input name="${name}_url" type="url" pattern="https://.*" maxlength="500" value="${e(state.settings[name + "_url"])}" placeholder="https://…"></label>`).join("")}<p>Order currency: PKR. USD is an optional display estimate.</p><label>PKR per 1 USD (optional; update regularly)<input name="usd_rate" type="number" min="0.01" step="0.01" value="${e(state.settings.usd_rate ?? "")}"></label><label>Payment instructions (public)<textarea name="payment_details" required maxlength="2000">${e(state.settings.payment_details)}</textarea></label><label>Delivery policy<textarea name="delivery_note" required maxlength="2000">${e(state.settings.delivery_note)}</textarea></label><p>Only enter payment receiving information you intend to show publicly. Never enter passwords, PINs, or API keys.</p><button class="primary">Save settings</button></form>`;
+    panel.querySelector("form").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const values = Object.fromEntries(new FormData(ev.target));
+      values.usd_rate = values.usd_rate ? Number(values.usd_rate) : null;
+      const notification_email = values.notification_email;
+      delete values.notification_email;
+      const { error: privateError } = await db
+        .from("owner_settings")
+        .update({ notification_email })
+        .eq("id", 1);
+      if (privateError) return toast(privateError.message);
+      state.ownerSettings.notification_email = notification_email;
+      const { error } = await db
+        .from("store_settings")
+        .update(values)
+        .eq("id", 1);
+      if (error) toast(error.message);
+      else {
+        Object.assign(state.settings, values);
+        if (!values.usd_rate) state.displayCurrency = "PKR";
+        document.querySelector("#display-currency option[value=USD]").disabled =
+          !values.usd_rate;
+        renderSocials();
+        toast("Settings saved.");
+      }
+    };
+    return;
+  }
+  panel.innerHTML = `<h3>Your collection</h3><div class="product-list">${products.map((p) => `<button data-edit="${e(p.id)}">${e(p.name)} · ${money(priceOf(p))} ${p.active ? "" : "(hidden)"}</button>`).join("")}</div><h3 id="edit-title">Add a product</h3><form id="product-form"><input type="hidden" name="id"><label>Name<input name="name" required maxlength="150"></label><label>Category<input name="category" required maxlength="60"></label><label>Description<textarea name="description" required maxlength="3000"></textarea></label><div class="form-row"><label>Original price<input name="price" type="number" min="1" step="0.01" required></label><label>Discount price (optional)<input name="sale_price" type="number" min="1" step="0.01"></label></div><label>Offer<input name="offer" maxlength="500"></label><label>Upload photos (JPEG, PNG, WebP; up to 5 MB each)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><label class="check"><input name="active" type="checkbox" checked> Visible in store</label><button class="primary">Save product</button><button type="button" id="new-product">New product</button><p id="product-error" role="alert"></p></form>`;
+  const form = panel.querySelector("form");
+  panel.querySelector("#new-product").onclick = () => {
+    form.reset();
+    form.elements.id.value = "";
+  };
+  panel.querySelectorAll("[data-edit]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const p = products.find((p) => p.id === b.dataset.edit);
+        for (const key of [
+          "id",
+          "name",
+          "category",
+          "description",
+          "price",
+          "sale_price",
+          "offer",
+        ])
+          form.elements[key].value = p[key] ?? "";
+        form.elements.active.checked = p.active;
+        panel.querySelector("#edit-title").textContent = "Edit product";
+      }),
+  );
+  form.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const button = form.querySelector("button");
+    button.disabled = true;
+    const values = Object.fromEntries(new FormData(form));
+    try {
+      const price = Number(values.price),
+        sale = values.sale_price ? Number(values.sale_price) : null;
+      if (sale !== null && sale >= price)
+        throw new Error(
+          "Discount price must be lower than the original price.",
+        );
+      const files = [...form.elements.photos.files];
+      if (files.length > 8) throw new Error("Upload at most 8 images.");
+      if (
+        files.some(
+          (f) =>
+            !["image/jpeg", "image/png", "image/webp"].includes(f.type) ||
+            f.size > 5 * 1024 * 1024,
+        )
+      )
+        throw new Error("Use JPEG, PNG, or WebP images smaller than 5 MB.");
+      let images = products.find((p) => p.id === values.id)?.images || [];
+      if (files.length) {
+        const uploaded = [];
+        for (const file of files) {
+          const path = `${crypto.randomUUID()}.${file.type.split("/")[1]}`;
+          const { error } = await db.storage
+            .from("product-images")
+            .upload(path, file);
+          if (error) throw error;
+          uploaded.push(
+            db.storage.from("product-images").getPublicUrl(path).data.publicUrl,
+          );
+        }
+        images = uploaded;
+      }
+      if (!images.length) throw new Error("Add at least one product image.");
+      const payload = {
+        name: values.name,
+        category: values.category,
+        description: values.description,
+        price,
+        sale_price: sale,
+        offer: values.offer,
+        images,
+        active: form.elements.active.checked,
+      };
+      const query = values.id
+        ? db.from("products").update(payload).eq("id", values.id)
+        : db.from("products").insert(payload);
+      const { error } = await query;
+      if (error) throw error;
+      await load();
+      await owner();
+      toast("Product saved.");
+    } catch (err) {
+      panel.querySelector("#product-error").textContent = err.message;
+    } finally {
+      button.disabled = false;
+    }
+  };
+}
+async function load() {
+  if (!db) return;
+  const results = await Promise.all([
+    db
+      .from("products")
+      .select("*")
+      .eq("active", true)
+      .order("created_at", { ascending: false }),
+    db.from("store_settings").select("*").eq("id", 1).single(),
+    db.from("testimonials").select("name,quote").eq("published", true),
+    db.rpc("delivered_count"),
+  ]);
+  const failed = results.find((r) => r.error);
+  if (failed)
+    throw new Error("Store connection failed: " + failed.error.message);
+  state.products = results[0].data;
+  state.settings = results[1].data;
+  state.testimonials = results[2].data;
+  state.delivered = results[3].data;
+  renderSocials();
+  document.querySelector("#display-currency option[value=USD]").disabled =
+    !state.settings.usd_rate;
+}
+async function route() {
+  clearInterval(window.ownerPoll);
+  if (location.hash.startsWith("#/owner")) await owner();
+  else {
+    storefront();
+    if (location.hash === "#story" || location.hash === "#collection")
+      document.querySelector(location.hash)?.scrollIntoView();
+  }
+}
+shell();
+try {
+  await load();
+  await route();
+} catch (err) {
+  document.querySelector("#view").innerHTML =
+    `<section class="studio"><h2>We’ll be back shortly.</h2><p role="alert">${e(err.message)}</p><p>Please try again later.</p></section>`;
+}
+window.addEventListener("hashchange", () => {
+  route().catch((err) => toast(err.message));
+});
