@@ -830,3 +830,39 @@ nav select {
   gap: 14px;
   flex-wrap: wrap;
 }
+.payment-qr {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+  flex-wrap: wrap;
+  padding: 20px 0;
+}
+.payment-qr > div {
+  flex: 1;
+  min-width: 180px;
+}
+.payment-qr a {
+  text-decoration: underline;
+}
+.payment-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+.payment-options article {
+  padding: 22px;
+  background: #efeee5;
+  border: 1px solid #dbdfd2;
+}
+.payment-options dt {
+  font-size: 11px;
+  color: #6b7465;
+  margin-top: 12px;
+}
+.payment-options dd {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.payment-options p {
+  font-size: 12px;
+}

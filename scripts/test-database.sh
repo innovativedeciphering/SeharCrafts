@@ -9,5 +9,8 @@ for attempt in {1..30}; do
   sleep 1
 done
 docker exec -i "$container" psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 < tests/database-bootstrap.sql
-docker exec -i "$container" psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 < supabase/schema.sql
+docker exec -i "$container" psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 < "${SCHEMA_FILE:-supabase/schema.sql}"
+if [[ "${APPLY_PAYMENT_UPGRADE:-0}" == "1" ]]; then
+  docker exec -i "$container" psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 < supabase/payment-upgrade.sql
+fi
 docker exec -i "$container" psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 < tests/database.sql

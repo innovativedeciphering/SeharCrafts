@@ -91,3 +91,25 @@ The owner URL is a separate route, not a security secret; Supabase authenticatio
 `npm test` checks discounted totals, quantities, stale products, HTML escaping and image URL protocols. `npm run build` creates the Pages bundle. Browser smoke testing in the cloud covered filters, gallery controls, cart quantities/totals/removal, the demo checkout guard, chat responses, owner setup gating, and mobile overflow. The isolated PostgreSQL 17 integration suite (`npm run test:db`, requires Docker) also passed server price validation, private order and notification-email policies, owner updates, upload policies, delivered count, and notification queue checks using minimal Supabase auth/storage interfaces. This is not a hosted Supabase test. `npm run test:browser` runs the saved browser smoke suite against the dev server; set `CHROMIUM_PATH` if Chromium is installed elsewhere, and optionally `BASE_URL` to test another origin/base path. Backend login, storage, live orders and real email must additionally pass the Supabase launch checks above; frontend checks do not establish backend readiness.
 
 Generated sample images are included locally to avoid an external photo-host dependency. Google Fonts is optional: the site falls back to system sans-serif and Georgia if fonts cannot load.
+
+## Bank, mobile wallet, and per-order QR payments
+
+In Owner studio → Payment & delivery, the owner can configure bank name, account title, account number/IBAN, JazzCash title and mobile number, Easypaisa title and mobile number, an HTTPS merchant-issued payment link, and cash on delivery. Empty or incomplete methods stay hidden. These are public receiving details; never enter a wallet PIN, banking login, OTP, card security code, or provider secret. Verify all details using a small test transfer before launch.
+
+Customers choose an enabled payment method at checkout. The server validates availability, records the preference, and creates an unguessable payment-page token for every order. The confirmation screen generates a downloadable QR locally in the browser—no third-party QR service receives order data. Scanning it opens that order’s payment instructions, receiving details and accepted alternatives. Emails link to the same page, and the owner can reopen it from the order dashboard. Treat the link as private. It exposes the order number, product subtotal, order/payment status and preferred method; it excludes customer names, addresses and contact details.
+
+**The QR opens the payment instructions page.** It does not itself initiate an in-app bank/wallet transfer or contain a Raast/JazzCash/Easypaisa merchant payment payload. Direct scan-to-pay requires a provider-issued payload or gateway integration. A configured merchant link opens the actual provider page; verify the recipient and amount there. Payment is manually verified by the owner. A scan or link click never marks an order paid. Delivery is additional and must be confirmed before payment. Paid, refunded, delivered or cancelled orders stop showing further payment requests on the payment page.
+
+For **new** databases, run the updated `supabase/schema.sql` once. If you already ran the previous schema, run **only** `supabase/payment-upgrade.sql` once instead, and redeploy the notification worker. Do not rerun the base schema on an existing database. Existing orders are marked as having no recorded payment preference. Their new payment tokens allow the owner to share payment pages.
+
+The email worker defaults to this repository’s GitHub Pages address. If hosting elsewhere, set its non-secret `STORE_URL` to the full storefront URL including the path, such as `https://example.com/SeharCrafts/`, then test the email link.
+
+QR unit tests decode the generated PNG to verify the exact order URL. A mocked-backend browser test additionally exercises payment selection, order confirmation, QR download, private-token routing and suppression of further payment requests after receipt. To run it separately from the normal demo dev server:
+
+```sh
+VITE_SUPABASE_URL=https://sehar-test.supabase.co VITE_SUPABASE_ANON_KEY=public-test-key npm run dev -- --port 5175
+# In another terminal:
+node scripts/payment-smoke.cjs
+```
+
+These are dummy test settings; the browser intercepts requests. They do not connect to a real customer database or validate live payment-provider processing.

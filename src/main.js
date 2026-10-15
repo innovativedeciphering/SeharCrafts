@@ -1,3 +1,10 @@
+import QRCode from "qrcode";
+import {
+  paymentFields,
+  paymentLabels,
+  paymentMethods,
+  paymentPageUrl,
+} from "./payments.js";
 import { createClient } from "@supabase/supabase-js";
 import { demoProducts, sampleImage } from "./demo.js";
 import { priceOf, totalOf, escapeHtml as e, safeImage } from "./domain.js";
@@ -211,7 +218,16 @@ function showCart() {
             })
             .join(
               "",
-            )}</div><h3>Subtotal ${money(totalOf(state.cart, state.products))}</h3><p class="muted">Orders are recorded in PKR. USD figures, when enabled, are estimates using the owner’s published conversion rate.</p><p>${e(state.settings.delivery_note)}</p><form id="checkout"><label>Your name<input name="name" required maxlength="100" autocomplete="name"></label><label>Email<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>Phone<input name="phone" type="tel" required maxlength="30" autocomplete="tel"></label><label>Delivery address<textarea name="address" required maxlength="1000" autocomplete="street-address"></textarea></label><label>Note (optional)<textarea name="note" maxlength="1000"></textarea></label><label class="check"><input name="consent" type="checkbox" required> I agree to use my contact details to process this order.</label><p class="muted">Order requests are subject to owner confirmation. No payment is collected on this page.</p><button class="primary" ${!configured ? "disabled" : ""}>${configured ? "Place order request" : "Preview only · connect store to order"}</button><p id="checkout-error" role="alert"></p></form>`
+            )}</div><h3>Subtotal ${money(totalOf(state.cart, state.products))}</h3><p class="muted">Orders are recorded in PKR. USD figures, when enabled, are estimates using the owner’s published conversion rate.</p><p>${e(state.settings.delivery_note)}</p><form id="checkout"><label>Your name<input name="name" required maxlength="100" autocomplete="name"></label><label>Email<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>Phone<input name="phone" type="tel" required maxlength="30" autocomplete="tel"></label><label>Delivery address<textarea name="address" required maxlength="1000" autocomplete="street-address"></textarea></label><label>Payment option<select name="payment_method" required><option value="">Choose a payment option</option>${paymentMethods(
+            state.settings,
+          )
+            .map(
+              (key) =>
+                `<option value="${key}">${e(paymentLabels[key])}</option>`,
+            )
+            .join(
+              "",
+            )}</select></label>${paymentMethods(state.settings).length ? "" : '<p class="muted">The owner has not enabled payment options yet.</p>'}<label>Note (optional)<textarea name="note" maxlength="1000"></textarea></label><label class="check"><input name="consent" type="checkbox" required> I agree to use my contact details to process this order.</label><p class="muted">Order requests are subject to owner confirmation. No payment is collected on this page.</p><button class="primary" ${!configured ? "disabled" : ""}>${configured ? "Place order request" : "Preview only · connect store to order"}</button><p id="checkout-error" role="alert"></p></form>`
         : "<p>Your bag is waiting for something lovely.</p>"
     }`,
   );
@@ -241,6 +257,7 @@ function showCart() {
           phone: values.phone,
           address: values.address,
           note: values.note,
+          payment_method: values.payment_method,
         },
         items: state.cart.map((i) => ({
           product_id: i.id,
@@ -255,8 +272,11 @@ function showCart() {
       }
       state.cart = [];
       document.querySelector("#count").textContent = "0";
-      modal(
-        `<p class="eyebrow">THANK YOU FOR SHOPPING SMALL</p><h2>Your request is in.</h2><p>Order number: <strong>${e(data.order_number)}</strong></p><p>Save this number. Your order is awaiting owner confirmation. An email will arrive if the store has enabled notifications.</p><p>${e(state.settings.payment_details)}</p><p class="muted">Never share a PIN, password, or card security code. Wait for the owner to confirm the final total before paying.</p>`,
+      const d = modal('<div id="payment-result"></div>');
+      await renderPayment(
+        data,
+        data.payment_token,
+        d.querySelector("#payment-result"),
       );
     };
 }
@@ -361,7 +381,7 @@ async function owner() {
 function renderPanel(tab, products) {
   const panel = document.querySelector("#panel");
   if (tab === "orders") {
-    panel.innerHTML = `<h3>Latest 100 orders</h3><button id="refresh">Refresh orders</button>${state.orders.map((o) => `<article class="order"><div class="section-heading"><h3>${e(o.order_number)}</h3><span>${e(o.status)} · ${e(o.payment_status)}</span></div><p>${e(o.customer.name)} · ${e(o.customer.email)} · ${e(o.customer.phone)}</p><p>${e(o.customer.address)}</p><p>${e(o.customer.note)}</p><ul>${o.items.map((i) => `<li>${e(i.name)} × ${i.quantity} · ${money(i.unit_price)}</li>`).join("")}</ul><strong>Product subtotal: ${money(o.total)}</strong><p class="muted">Delivery charges must be confirmed separately before requesting payment.</p><label>Order status<select data-status="${o.id}">${["placed", "confirmed", "dispatched", "delivered", "cancelled"].map((s) => `<option ${o.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label><label>Payment<select data-payment="${o.id}">${["pending", "received", "refunded"].map((s) => `<option ${o.payment_status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label></article>`).join("") || "<p>No orders yet.</p>"}`;
+    panel.innerHTML = `<h3>Latest 100 orders</h3><button id="refresh">Refresh orders</button>${state.orders.map((o) => `<article class="order"><div class="section-heading"><h3>${e(o.order_number)}</h3><span>${e(o.status)} · ${e(o.payment_status)}</span></div><p>${e(o.customer.name)} · ${e(o.customer.email)} · ${e(o.customer.phone)}</p><p>${e(o.customer.address)}</p><p>${e(o.customer.note)}</p><p>Preferred payment: ${e(paymentLabels[o.payment_method] || o.payment_method)}</p><a href="${e(paymentPageUrl(o.payment_token, location.href))}" target="_blank" rel="noopener">Open order payment page & QR ↗</a><ul>${o.items.map((i) => `<li>${e(i.name)} × ${i.quantity} · ${money(i.unit_price)}</li>`).join("")}</ul><strong>Product subtotal: ${money(o.total)}</strong><p class="muted">Delivery charges must be confirmed separately before requesting payment.</p><label>Order status<select data-status="${o.id}">${["placed", "confirmed", "dispatched", "delivered", "cancelled"].map((s) => `<option ${o.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label><label>Payment<select data-payment="${o.id}">${["pending", "received", "refunded"].map((s) => `<option ${o.payment_status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label></article>`).join("") || "<p>No orders yet.</p>"}`;
     panel.querySelector("#refresh").onclick = owner;
     for (const kind of ["status", "payment"])
       panel.querySelectorAll(`[data-${kind}]`).forEach(
@@ -403,11 +423,44 @@ function renderPanel(tab, products) {
     return;
   }
   if (tab === "settings") {
-    panel.innerHTML = `<h3>Store information & notifications</h3><form id="settings-form"><label>Owner notification email (private)<input name="notification_email" type="email" maxlength="254" value="${e(state.ownerSettings.notification_email)}" placeholder="Your order alert email" required></label><p class="muted">New-order and order/payment status alerts go here after email delivery is configured. This address is not shown publicly on the storefront.</p>${["instagram", "facebook", "tiktok"].map((name) => `<label>${name[0].toUpperCase() + name.slice(1)} link (public, optional)<input name="${name}_url" type="url" pattern="https://.*" maxlength="500" value="${e(state.settings[name + "_url"])}" placeholder="https://…"></label>`).join("")}<p>Order currency: PKR. USD is an optional display estimate.</p><label>PKR per 1 USD (optional; update regularly)<input name="usd_rate" type="number" min="0.01" step="0.01" value="${e(state.settings.usd_rate ?? "")}"></label><label>Payment instructions (public)<textarea name="payment_details" required maxlength="2000">${e(state.settings.payment_details)}</textarea></label><label>Delivery policy<textarea name="delivery_note" required maxlength="2000">${e(state.settings.delivery_note)}</textarea></label><p>Only enter payment receiving information you intend to show publicly. Never enter passwords, PINs, or API keys.</p><button class="primary">Save settings</button></form>`;
+    panel.innerHTML = `<h3>Store information & notifications</h3><form id="settings-form"><label>Owner notification email (private)<input name="notification_email" type="email" maxlength="254" value="${e(state.ownerSettings.notification_email)}" placeholder="Your order alert email" required></label><p class="muted">New-order and order/payment status alerts go here after email delivery is configured. This address is not shown publicly on the storefront.</p>${["instagram", "facebook", "tiktok"].map((name) => `<label>${name[0].toUpperCase() + name.slice(1)} link (public, optional)<input name="${name}_url" type="url" pattern="https://.*" maxlength="500" value="${e(state.settings[name + "_url"])}" placeholder="https://…"></label>`).join("")}<p>Order currency: PKR. USD is an optional display estimate.</p><label>PKR per 1 USD (optional; update regularly)<input name="usd_rate" type="number" min="0.01" step="0.01" value="${e(state.settings.usd_rate ?? "")}"></label><h3>Receiving accounts & payment options</h3>${Object.entries(
+      paymentFields,
+    )
+      .map(
+        ([key, label]) =>
+          `<label>${e(label)}<input name="${key}" ${key === "payment_url" ? 'type="url" pattern="https://.*"' : 'type="text"'} maxlength="300" value="${e(state.settings[key])}"></label>`,
+      )
+      .join(
+        "",
+      )}<label class="check"><input name="cod_enabled" type="checkbox" ${state.settings.cod_enabled ? "checked" : ""}> Offer cash on delivery (confirm availability per address)</label><p class="muted">Complete account title and number to enable each wallet. Bank transfer needs bank name, account title and account number or IBAN. Use only a merchant-issued online payment link.</p><label>Payment instructions (public)<textarea name="payment_details" required maxlength="2000">${e(state.settings.payment_details)}</textarea></label><label>Delivery policy<textarea name="delivery_note" required maxlength="2000">${e(state.settings.delivery_note)}</textarea></label><p>Only enter payment receiving information you intend to show publicly. Never enter passwords, PINs, or API keys.</p><button class="primary">Save settings</button></form>`;
     panel.querySelector("form").onsubmit = async (ev) => {
       ev.preventDefault();
       const values = Object.fromEntries(new FormData(ev.target));
       values.usd_rate = values.usd_rate ? Number(values.usd_rate) : null;
+      values.cod_enabled = ev.target.elements.cod_enabled.checked;
+      for (const prefix of ["jazzcash", "easypaisa"]) {
+        if (
+          Boolean(values[prefix + "_name"]) !==
+          Boolean(values[prefix + "_number"])
+        )
+          return toast(
+            "Enter both the wallet account title and mobile number.",
+          );
+      }
+      if (
+        (values.bank_name ||
+          values.bank_account_title ||
+          values.bank_account_number ||
+          values.bank_iban) &&
+        !(
+          values.bank_name &&
+          values.bank_account_title &&
+          (values.bank_account_number || values.bank_iban)
+        )
+      )
+        return toast(
+          "Complete the bank name, account title and account number or IBAN.",
+        );
       const notification_email = values.notification_email;
       delete values.notification_email;
       const { error: privateError } = await db
@@ -542,10 +595,91 @@ async function load() {
   document.querySelector("#display-currency option[value=USD]").disabled =
     !state.settings.usd_rate;
 }
+
+function paymentDetails(key) {
+  const fields =
+    key === "bank"
+      ? ["bank_name", "bank_account_title", "bank_account_number", "bank_iban"]
+      : key === "jazzcash"
+        ? ["jazzcash_name", "jazzcash_number"]
+        : key === "easypaisa"
+          ? ["easypaisa_name", "easypaisa_number"]
+          : [];
+  return fields
+    .filter((f) => state.settings[f])
+    .map(
+      (f) => `<dt>${e(paymentFields[f])}</dt><dd>${e(state.settings[f])}</dd>`,
+    )
+    .join("");
+}
+async function renderPayment(order, token, container) {
+  const url = paymentPageUrl(token, location.href);
+  const closed =
+    ["cancelled", "delivered"].includes(order.status) ||
+    order.payment_status === "received" ||
+    order.payment_status === "refunded";
+  container.innerHTML = `<p class="eyebrow">YOUR ORDER · PAYMENT OPTIONS</p><h2>${e(order.order_number)}</h2><p>Order: <strong>${e(order.status)}</strong> · Payment: <strong>${e(order.payment_status)}</strong></p><p>Product subtotal: <strong>PKR ${Number(order.total).toLocaleString("en-PK")}</strong></p><p>Preferred payment: ${e(paymentLabels[order.payment_method] || "Not recorded (older order)")}</p><p class="muted">Delivery and international charges are additional. Wait for owner confirmation of the final payable amount before transferring. Scanning does not record or confirm payment.</p><div class="payment-qr"><canvas id="order-qr" aria-label="QR code for this order payment page"></canvas><div><h3>Your order QR</h3><p>Scan to open this order’s payment instructions. Transfer using your bank or wallet app, or the owner’s online payment link.</p><a id="download-qr" download="${e(order.order_number)}-payment.png">Download QR</a> · <button id="copy-payment-link">Copy payment link</button></div></div><p class="muted">Keep this link private. Anyone with it can see the order reference, payment status and subtotal; customer contact details are excluded.</p>${
+    closed
+      ? "<p>No further payment is requested for this order. Contact the owner for any refund or adjustment.</p>"
+      : `<div class="payment-options">${
+          paymentMethods(state.settings)
+            .map(
+              (key) =>
+                `<article><h3>${e(paymentLabels[key])}</h3><dl>${paymentDetails(key)}</dl>${key === "cod" ? "<p>Pay on delivery after the owner confirms this option is available at your address.</p>" : key === "online" ? `<a class="primary" href="${e(safeImage(state.settings.payment_url))}" target="_blank" rel="noopener noreferrer">Open secure provider page ↗</a><p class="muted">Verify the recipient and amount on the provider page. Include your order number where supported.</p>` : "<p>Use your order number as the transfer reference. Send the transaction reference to the owner after payment; the owner verifies it manually.</p>"}</article>`,
+            )
+            .join("") || "<p>The owner has not enabled payment methods yet.</p>"
+        }</div>`
+  }<p>${e(state.settings.payment_details)}</p>`;
+  await QRCode.toCanvas(container.querySelector("#order-qr"), url, {
+    width: 240,
+    margin: 2,
+    errorCorrectionLevel: "M",
+  });
+  container.querySelector("#download-qr").href = container
+    .querySelector("canvas")
+    .toDataURL("image/png");
+  container.querySelector("#copy-payment-link").onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("Payment link copied.");
+    } catch {
+      toast("Copy the link from your browser address bar: " + url);
+    }
+  };
+}
+async function paymentRoute() {
+  const view = document.querySelector("#view");
+  view.innerHTML =
+    '<section class="studio wide" id="payment-view"><p>Loading payment instructions…</p></section>';
+  const token = location.hash.slice("#/pay/".length);
+  if (!db) {
+    document.querySelector("#payment-view").textContent =
+      "Connect the store to access order payment instructions.";
+    return;
+  }
+  if (!/^[a-f0-9-]{36}$/i.test(token)) {
+    document.querySelector("#payment-view").textContent =
+      "Invalid payment link.";
+    return;
+  }
+  const { data, error } = await db.rpc("order_payment", { token });
+  if (error || !data) {
+    document.querySelector("#payment-view").textContent =
+      "Payment instructions could not be found. Check the link or contact the owner.";
+    return;
+  }
+  await renderPayment(data, token, document.querySelector("#payment-view"));
+}
+
 async function route() {
+  const dialog = document.querySelector("#modal");
+  if (dialog.open) dialog.close();
+  dialog.replaceChildren();
   clearInterval(window.ownerPoll);
   if (location.hash.startsWith("#/owner")) await owner();
-  else {
+  else if (location.hash.startsWith("#/pay/")) {
+    await paymentRoute();
+  } else {
     storefront();
     if (location.hash === "#story" || location.hash === "#collection")
       document.querySelector(location.hash)?.scrollIntoView();

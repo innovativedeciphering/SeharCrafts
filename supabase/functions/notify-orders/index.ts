@@ -45,8 +45,13 @@ Deno.serve(async (request) => {
   for (const event of events ?? []) {
     const order = event.orders;
     const kind = String(event.kind).replaceAll("_", " ");
+    const paymentUrl = new URL(
+      Deno.env.get("STORE_URL") ||
+        "https://innovativedeciphering.github.io/SeharCrafts/",
+    );
+    paymentUrl.hash = "/pay/" + order.payment_token;
     const subject = `Sehar Crafts · ${order.order_number} · ${kind}`;
-    const html = `<h2>${escapeHtml(subject)}</h2><p>Hello ${escapeHtml(order.customer.name)},</p><p>Order status: ${escapeHtml(order.status)}. Payment status: ${escapeHtml(order.payment_status)}.</p><ul>${order.items.map((i: { name: string; quantity: number; unit_price: number }) => `<li>${escapeHtml(i.name)} × ${i.quantity} — PKR ${i.unit_price}</li>`).join("")}</ul><p>Product subtotal: PKR ${order.total}. Delivery is confirmed separately.</p><p>Reply to this email for help. Keep your order number for reference. Never share passwords or payment PINs.</p>`;
+    const html = `<h2>${escapeHtml(subject)}</h2><p>Hello ${escapeHtml(order.customer.name)},</p><p>Order status: ${escapeHtml(order.status)}. Payment status: ${escapeHtml(order.payment_status)}.</p><ul>${order.items.map((i: { name: string; quantity: number; unit_price: number }) => `<li>${escapeHtml(i.name)} × ${i.quantity} — PKR ${i.unit_price}</li>`).join("")}</ul><p>Product subtotal: PKR ${order.total}. Delivery is confirmed separately.</p><p>Preferred payment: ${escapeHtml(order.payment_method)}.</p><p><a href="${escapeHtml(paymentUrl.href)}">Open your order payment options and QR code</a>. Keep this link private. Wait for owner confirmation of delivery charges and the final amount before transferring.</p><p>Reply to this email for help. Keep your order number for reference. Never share passwords or payment PINs.</p>`;
     try {
       // Separate requests keep the owner's email private. Stable provider idempotency keys protect retries.
       for (const [role, to] of [
