@@ -113,3 +113,13 @@ node scripts/payment-smoke.cjs
 ```
 
 These are dummy test settings; the browser intercepts requests. They do not connect to a real customer database or validate live payment-provider processing.
+
+## Private order tracking and customer cancellation
+
+Customers can use **Track order** in the navigation and paste their private tracking/payment link or code. Confirmation/payment pages include **Track or cancel this order**, and the owner can copy the private tracking URL from each order. The updated email worker links directly to tracking. Tracking shows the owner-recorded status, payment status, product subtotal and a history of order/payment updates. It does not connect to live courier location services or expose customer contact details. Treat the link as private.
+
+Customers can cancel orders in `placed` or `confirmed` status using their private token and the email used for checkout, with an optional reason and explicit confirmation checkbox. The database checks the current status under a row lock, blocks cancellation after dispatch or delivery, and queues one cancellation notification. Repeated requests do not create duplicate cancellation events. Cancellation preserves the payment status; received funds require a separate refund arranged and recorded by the owner. Dispatched orders should follow the store’s returns/contact process.
+
+**Existing Supabase installations:** run `supabase/tracking-upgrade.sql` in a new SQL Editor query after the payment upgrade is installed. This adds a cancellation-reason field and the restricted tracking/cancellation RPCs while preserving orders. Do not rerun `schema.sql` on an existing installation. New databases use the updated base schema. Redeploy `notify-orders` to put tracking links directly into future emails; older payment links still provide a tracking button after the website deploys. Alerts remain dependent on the configured email provider and scheduler.
+
+Tracking/cancellation database checks run as part of `npm run test:db`. The mocked payment browser suite also checks tracking navigation, email errors, cancellation, refund messaging, post-dispatch restrictions and mobile layout.

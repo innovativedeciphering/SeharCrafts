@@ -56,7 +56,7 @@ function toast(message) {
   window.toastTimer = setTimeout(() => (node.hidden = true), 6000);
 }
 function shell() {
-  app.innerHTML = `<div class="announcement">Thoughtfully made. Beautifully yours. <span>Handcrafted with love in every detail</span></div><header><a class="brand" href="#/">sehar<span>CRAFTS & LITTLE JOYS</span></a><nav><a href="#/">Shop collection</a><a href="#story">Our story</a><a href="#/owner">Owner studio</a><select id="display-currency" aria-label="Display currency"><option>PKR</option><option value="USD" ${state.settings.usd_rate ? "" : "disabled"}>USD estimate</option></select></nav><button class="bag" id="cart">Bag <span id="count">${state.cart.reduce((s, i) => s + i.quantity, 0)}</span></button></header><main id="view"></main><footer><a class="brand" href="#/">sehar<span>MADE BY HAND, KEPT BY HEART.</span></a><p>Handcrafts, home accents & thoughtful gifts.</p><div id="social-links"></div><a href="#/owner">Owner studio ↗</a><small>© ${new Date().getFullYear()} Sehar Crafts</small></footer><button id="chat-open" class="chat-open">✧ Ask Sehar</button><section id="chat" class="chat" hidden><div class="chat-title">Your shopping companion <button id="chat-close" aria-label="Close assistant">×</button></div><p class="muted">Automated store guide · not a live person or AI model</p><div id="chat-log" aria-live="polite"><p>Hello! I can help with products, prices, ordering, delivery, and payment.</p></div><form id="chat-form"><input name="message" aria-label="Message" placeholder="Ask about our collection…" required maxlength="500"><button>Send</button></form></section><dialog id="modal"></dialog><div id="toast" role="status" hidden></div>`;
+  app.innerHTML = `<div class="announcement">Thoughtfully made. Beautifully yours. <span>Handcrafted with love in every detail</span></div><header><a class="brand" href="#/">sehar<span>CRAFTS & LITTLE JOYS</span></a><nav><a href="#/">Shop collection</a><a href="#story">Our story</a><a href="#/track">Track order</a><a href="#/owner">Owner studio</a><select id="display-currency" aria-label="Display currency"><option>PKR</option><option value="USD" ${state.settings.usd_rate ? "" : "disabled"}>USD estimate</option></select></nav><button class="bag" id="cart">Bag <span id="count">${state.cart.reduce((s, i) => s + i.quantity, 0)}</span></button></header><main id="view"></main><footer><a class="brand" href="#/">sehar<span>MADE BY HAND, KEPT BY HEART.</span></a><p>Handcrafts, home accents & thoughtful gifts.</p><div id="social-links"></div><a href="#/owner">Owner studio ↗</a><small>© ${new Date().getFullYear()} Sehar Crafts</small></footer><button id="chat-open" class="chat-open">✧ Ask Sehar</button><section id="chat" class="chat" hidden><div class="chat-title">Your shopping companion <button id="chat-close" aria-label="Close assistant">×</button></div><p class="muted">Automated store guide · not a live person or AI model</p><div id="chat-log" aria-live="polite"><p>Hello! I can help with products, prices, ordering, delivery, and payment.</p></div><form id="chat-form"><input name="message" aria-label="Message" placeholder="Ask about our collection…" required maxlength="500"><button>Send</button></form></section><dialog id="modal"></dialog><div id="toast" role="status" hidden></div>`;
   document.querySelector("#cart").onclick = showCart;
   document.querySelector("#display-currency").onchange = (ev) => {
     state.displayCurrency = ev.target.value;
@@ -381,7 +381,7 @@ async function owner() {
 function renderPanel(tab, products) {
   const panel = document.querySelector("#panel");
   if (tab === "orders") {
-    panel.innerHTML = `<h3>Latest 100 orders</h3><button id="refresh">Refresh orders</button>${state.orders.map((o) => `<article class="order"><div class="section-heading"><h3>${e(o.order_number)}</h3><span>${e(o.status)} · ${e(o.payment_status)}</span></div><p>${e(o.customer.name)} · ${e(o.customer.email)} · ${e(o.customer.phone)}</p><p>${e(o.customer.address)}</p><p>${e(o.customer.note)}</p><p>Preferred payment: ${e(paymentLabels[o.payment_method] || o.payment_method)}</p><a href="${e(paymentPageUrl(o.payment_token, location.href))}" target="_blank" rel="noopener">Open order payment page & QR ↗</a><ul>${o.items.map((i) => `<li>${e(i.name)} × ${i.quantity} · ${money(i.unit_price)}</li>`).join("")}</ul><strong>Product subtotal: ${money(o.total)}</strong><p class="muted">Delivery charges must be confirmed separately before requesting payment.</p><label>Order status<select data-status="${o.id}">${["placed", "confirmed", "dispatched", "delivered", "cancelled"].map((s) => `<option ${o.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label><label>Payment<select data-payment="${o.id}">${["pending", "received", "refunded"].map((s) => `<option ${o.payment_status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label></article>`).join("") || "<p>No orders yet.</p>"}`;
+    panel.innerHTML = `<h3>Latest 100 orders</h3><button id="refresh">Refresh orders</button>${state.orders.map((o) => `<article class="order"><div class="section-heading"><h3>${e(o.order_number)}</h3><span>${e(o.status)} · ${e(o.payment_status)}</span></div><p>${e(o.customer.name)} · ${e(o.customer.email)} · ${e(o.customer.phone)}</p><p>${e(o.customer.address)}</p><p>${e(o.customer.note)}</p><p>Preferred payment: ${e(paymentLabels[o.payment_method] || o.payment_method)}</p><a href="${e(trackingUrl(o.payment_token))}" target="_blank" rel="noopener">Open order tracking & cancellation ↗</a><p>${e(o.cancellation_reason || "")}</p><a href="${e(paymentPageUrl(o.payment_token, location.href))}" target="_blank" rel="noopener">Open order payment page & QR ↗</a><ul>${o.items.map((i) => `<li>${e(i.name)} × ${i.quantity} · ${money(i.unit_price)}</li>`).join("")}</ul><strong>Product subtotal: ${money(o.total)}</strong><p class="muted">Delivery charges must be confirmed separately before requesting payment.</p><label>Order status<select data-status="${o.id}">${["placed", "confirmed", "dispatched", "delivered", "cancelled"].map((s) => `<option ${o.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label><label>Payment<select data-payment="${o.id}">${["pending", "received", "refunded"].map((s) => `<option ${o.payment_status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label></article>`).join("") || "<p>No orders yet.</p>"}`;
     panel.querySelector("#refresh").onclick = owner;
     for (const kind of ["status", "payment"])
       panel.querySelectorAll(`[data-${kind}]`).forEach(
@@ -485,20 +485,26 @@ function renderPanel(tab, products) {
     };
     return;
   }
-  panel.innerHTML = `<h3 id="edit-title">Add a product</h3><form id="product-form"><input type="hidden" name="id"><label>Name<input name="name" required maxlength="150"></label><label>Category<input name="category" required maxlength="60"></label><label>Description<textarea name="description" required maxlength="3000"></textarea></label><div class="form-row"><label>Original price<input name="price" type="number" min="1" step="0.01" required></label><label>Discount price (optional)<input name="sale_price" type="number" min="1" step="0.01"></label></div><label>Offer<input name="offer" maxlength="500"></label><label>Upload photos (JPEG, PNG, WebP; up to 5 MB each)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><label class="check"><input name="active" type="checkbox" checked> Visible in store</label><button class="primary">Save product</button><button type="button" id="new-product">New product</button><p id="product-error" role="alert"></p></form><section class="owner-collection" aria-labelledby="collection-title"><h3 id="collection-title">Your collection</h3><p class="muted">Select a product to edit its details above.</p><div class="product-list">${products.map((p) => `<button type="button" class="owner-product" data-edit="${e(p.id)}" aria-pressed="false"><span class="owner-product-image">${p.images?.[0] ? img(p.images[0],p.name) : ''}<span class="image-fallback" aria-hidden="true">✧</span></span><span class="owner-product-name">${e(p.name)}</span><span class="owner-product-price">${money(priceOf(p))}</span>${p.active ? '' : '<span class="owner-product-status">Hidden</span>'}</button>`).join("") || '<p class="muted">Your products will appear here after you add them.</p>'}</div></section>`;
+  panel.innerHTML = `<h3 id="edit-title">Add a product</h3><form id="product-form"><input type="hidden" name="id"><label>Name<input name="name" required maxlength="150"></label><label>Category<input name="category" required maxlength="60"></label><label>Description<textarea name="description" required maxlength="3000"></textarea></label><div class="form-row"><label>Original price<input name="price" type="number" min="1" step="0.01" required></label><label>Discount price (optional)<input name="sale_price" type="number" min="1" step="0.01"></label></div><label>Offer<input name="offer" maxlength="500"></label><label>Upload photos (JPEG, PNG, WebP; up to 5 MB each)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><label class="check"><input name="active" type="checkbox" checked> Visible in store</label><button class="primary">Save product</button><button type="button" id="new-product">New product</button><p id="product-error" role="alert"></p></form><section class="owner-collection" aria-labelledby="collection-title"><h3 id="collection-title">Your collection</h3><p class="muted">Select a product to edit its details above.</p><div class="product-list">${products.map((p) => `<button type="button" class="owner-product" data-edit="${e(p.id)}" aria-pressed="false"><span class="owner-product-image">${p.images?.[0] ? img(p.images[0], p.name) : ""}<span class="image-fallback" aria-hidden="true">✧</span></span><span class="owner-product-name">${e(p.name)}</span><span class="owner-product-price">${money(priceOf(p))}</span>${p.active ? "" : '<span class="owner-product-status">Hidden</span>'}</button>`).join("") || '<p class="muted">Your products will appear here after you add them.</p>'}</div></section>`;
   const form = panel.querySelector("form");
   panel.querySelector("#new-product").onclick = () => {
     form.reset();
     form.elements.id.value = "";
     panel.querySelector("#edit-title").textContent = "Add a product";
-    panel.querySelectorAll("[data-edit]").forEach(button => button.setAttribute("aria-pressed", "false"));
+    panel
+      .querySelectorAll("[data-edit]")
+      .forEach((button) => button.setAttribute("aria-pressed", "false"));
   };
   panel.querySelectorAll("[data-edit]").forEach(
     (b) =>
       (b.onclick = () => {
         const p = products.find((p) => p.id === b.dataset.edit);
         form.reset();
-        panel.querySelectorAll("[data-edit]").forEach(button => button.setAttribute("aria-pressed", String(button === b)));
+        panel
+          .querySelectorAll("[data-edit]")
+          .forEach((button) =>
+            button.setAttribute("aria-pressed", String(button === b)),
+          );
         for (const key of [
           "id",
           "name",
@@ -511,8 +517,8 @@ function renderPanel(tab, products) {
           form.elements[key].value = p[key] ?? "";
         form.elements.active.checked = p.active;
         panel.querySelector("#edit-title").textContent = "Edit product";
-        panel.querySelector("#edit-title").scrollIntoView({block:"start"});
-        form.elements.name.focus({preventScroll:true});
+        panel.querySelector("#edit-title").scrollIntoView({ block: "start" });
+        form.elements.name.focus({ preventScroll: true });
       }),
   );
   form.onsubmit = async (ev) => {
@@ -624,7 +630,7 @@ async function renderPayment(order, token, container) {
     ["cancelled", "delivered"].includes(order.status) ||
     order.payment_status === "received" ||
     order.payment_status === "refunded";
-  container.innerHTML = `<p class="eyebrow">YOUR ORDER · PAYMENT OPTIONS</p><h2>${e(order.order_number)}</h2><p>Order: <strong>${e(order.status)}</strong> · Payment: <strong>${e(order.payment_status)}</strong></p><p>Product subtotal: <strong>PKR ${Number(order.total).toLocaleString("en-PK")}</strong></p><p>Preferred payment: ${e(paymentLabels[order.payment_method] || "Not recorded (older order)")}</p><p class="muted">Delivery and international charges are additional. Wait for owner confirmation of the final payable amount before transferring. Scanning does not record or confirm payment.</p><div class="payment-qr"><canvas id="order-qr" aria-label="QR code for this order payment page"></canvas><div><h3>Your order QR</h3><p>Scan to open this order’s payment instructions. Transfer using your bank or wallet app, or the owner’s online payment link.</p><a id="download-qr" download="${e(order.order_number)}-payment.png">Download QR</a> · <button id="copy-payment-link">Copy payment link</button></div></div><p class="muted">Keep this link private. Anyone with it can see the order reference, payment status and subtotal; customer contact details are excluded.</p>${
+  container.innerHTML = `<p class="eyebrow">YOUR ORDER · PAYMENT OPTIONS</p><h2>${e(order.order_number)}</h2><p>Order: <strong>${e(order.status)}</strong> · Payment: <strong>${e(order.payment_status)}</strong></p><p>Product subtotal: <strong>PKR ${Number(order.total).toLocaleString("en-PK")}</strong></p><p><a class="primary" href="${e(trackingUrl(token))}">Track or cancel this order ↗</a></p><p>Preferred payment: ${e(paymentLabels[order.payment_method] || "Not recorded (older order)")}</p><p class="muted">Delivery and international charges are additional. Wait for owner confirmation of the final payable amount before transferring. Scanning does not record or confirm payment.</p><div class="payment-qr"><canvas id="order-qr" aria-label="QR code for this order payment page"></canvas><div><h3>Your order QR</h3><p>Scan to open this order’s payment instructions. Transfer using your bank or wallet app, or the owner’s online payment link.</p><a id="download-qr" download="${e(order.order_number)}-payment.png">Download QR</a> · <button id="copy-payment-link">Copy payment link</button></div></div><p class="muted">Keep this link private. Anyone with it can see the order reference, payment status and subtotal; customer contact details are excluded.</p>${
     closed
       ? "<p>No further payment is requested for this order. Contact the owner for any refund or adjustment.</p>"
       : `<div class="payment-options">${
@@ -677,13 +683,88 @@ async function paymentRoute() {
   await renderPayment(data, token, document.querySelector("#payment-view"));
 }
 
+function trackingUrl(token) {
+  return paymentPageUrl(token, location.href).replace("#/pay/", "#/track/");
+}
+const updateLabels = {
+  placed: "Order placed",
+  confirmed: "Confirmed by owner",
+  dispatched: "Dispatched",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+  payment_pending: "Payment pending",
+  payment_received: "Payment received",
+  payment_refunded: "Payment refunded",
+};
+async function trackingRoute() {
+  const view = document.querySelector("#view");
+  view.innerHTML =
+    '<section class="studio wide" id="tracking-view"><p class="eyebrow">YOUR LITTLE JOYS, ON THEIR WAY</p><h2>Track your order</h2><form id="tracking-lookup"><label>Private tracking link or code<input name="code" required autocomplete="off" placeholder="Paste the link or code from your order confirmation"></label><button class="primary">View order</button></form><p class="muted">Use your private confirmation, tracking or payment link. An order number alone does not grant access. The owner can resend your link if needed.</p><div id="tracking-result" aria-live="polite"></div></section>';
+  const lookup = document.querySelector("#tracking-lookup");
+  lookup.onsubmit = (event) => {
+    event.preventDefault();
+    const value = lookup.elements.code.value.trim();
+    let token = value;
+    try {
+      const url = new URL(value);
+      token = url.hash.split("/").pop();
+    } catch {}
+    if (!/^[a-f0-9-]{36}$/i.test(token)) {
+      toast("Paste a valid private order link or tracking code.");
+      return;
+    }
+    location.hash = "/track/" + token;
+  };
+  const token = location.hash.slice("#/track/".length);
+  if (location.hash === "#/track") return;
+  const result = document.querySelector("#tracking-result");
+  if (!db) {
+    result.textContent = "Connect the store to track orders.";
+    return;
+  }
+  if (!/^[a-f0-9-]{36}$/i.test(token)) {
+    result.textContent = "Invalid tracking link.";
+    return;
+  }
+  const { data: order, error } = await db.rpc("track_order", { token });
+  if (error || !order) {
+    result.textContent =
+      "Tracking could not be loaded. Check your link or contact the owner.";
+    return;
+  }
+  result.innerHTML = `<section class="tracking-summary"><h3>${e(order.order_number)}</h3><p>Order: <strong>${e(order.status)}</strong> · Payment: <strong>${e(order.payment_status)}</strong></p><p>Product subtotal: PKR ${Number(order.total).toLocaleString("en-PK")}</p><button id="refresh-tracking">Refresh status</button> <a href="${e(paymentPageUrl(token, location.href))}">Payment options & QR ↗</a><h3>Progress updates</h3><ol class="order-timeline">${(order.history || []).map((event) => `<li><strong>${e(updateLabels[event.kind] || event.kind)}</strong><time datetime="${e(event.created_at)}">${e(new Date(event.created_at).toLocaleString())}</time></li>`).join("") || "<li>Order recorded. Further updates will appear here.</li>"}</ol><p class="muted">Status updates are recorded by the owner. Courier location tracking is not connected. Keep this private link secure.</p>${order.status === "cancelled" ? `<p>Order cancelled. ${order.payment_status === "received" ? "Payment was received; contact the owner to arrange a refund. Refunds are processed separately." : ""}</p>` : ["placed", "confirmed"].includes(order.status) ? `<h3>Cancel this order</h3><p>You can cancel before dispatch.${order.payment_status === "received" ? " Your payment has been received. The owner must arrange your refund separately." : ""}</p><form id="cancel-order"><label>Email used for this order<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>Reason (optional)<textarea name="reason" maxlength="500"></textarea></label><label class="check"><input type="checkbox" required> I confirm that I want to cancel this order.</label><button class="danger">Cancel order</button><p id="cancel-error" role="alert"></p></form>` : "<p>Online cancellation closes after dispatch. Contact the owner about returns or delivery issues.</p>"}</section>`;
+  result.querySelector("#refresh-tracking").onclick = trackingRoute;
+  const form = result.querySelector("#cancel-order");
+  if (form)
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      const button = form.querySelector("button");
+      button.disabled = true;
+      try {
+        const { error } = await db.rpc("cancel_order", {
+          token,
+          customer_email: form.elements.email.value,
+          reason: form.elements.reason.value,
+        });
+        if (error) throw error;
+        await trackingRoute();
+        toast("Order cancelled. Any refund must be arranged with the owner.");
+      } catch (err) {
+        form.querySelector("#cancel-error").textContent = err.message;
+        button.disabled = false;
+      }
+    };
+}
+
 async function route() {
   const dialog = document.querySelector("#modal");
   if (dialog.open) dialog.close();
   dialog.replaceChildren();
   clearInterval(window.ownerPoll);
   if (location.hash.startsWith("#/owner")) await owner();
-  else if (location.hash.startsWith("#/pay/")) {
+  else if (location.hash.startsWith("#/track")) {
+    await trackingRoute();
+  } else if (location.hash.startsWith("#/pay/")) {
     await paymentRoute();
   } else {
     storefront();

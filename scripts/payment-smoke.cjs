@@ -41,6 +41,25 @@ const assert = require("node:assert/strict");
         data = order;
       } else if (url.pathname.endsWith("/rpc/order_payment")) {
         data = route.request().postDataJSON().token === token ? order : null;
+      } else if (url.pathname.endsWith("/rpc/track_order")) {
+        data = {
+          ...order,
+          history: [{ kind: "placed", created_at: "2026-10-18T10:00:00Z" }],
+        };
+      } else if (url.pathname.endsWith("/rpc/cancel_order")) {
+        const args = route.request().postDataJSON();
+        if (args.customer_email !== "customer@example.com") {
+          await route.fulfill({
+            status: 400,
+            contentType: "application/json",
+            body: JSON.stringify({
+              message: "Check your tracking link and order email.",
+            }),
+          });
+          return;
+        }
+        order.status = "cancelled";
+        data = order;
       } else if (url.pathname.endsWith("/rpc/delivered_count")) data = 0;
       else if (url.pathname.endsWith("/products"))
         data = [
@@ -114,9 +133,45 @@ const assert = require("node:assert/strict");
       })
       .waitFor();
     assert.equal(await page.locator(".payment-options article").count(), 0);
+    await page
+      .getByRole("link", { name: "Track or cancel this order" })
+      .click();
+    await page.locator("#cancel-order").waitFor();
+    await page.locator("#cancel-order [name=email]").fill("wrong@example.com");
+    await page.locator("#cancel-order input[type=checkbox]").check();
+    await page
+      .getByRole("button", { name: "Cancel order", exact: true })
+      .click();
+    await page
+      .getByText("Check your tracking link and order email.", { exact: true })
+      .waitFor();
+    await page
+      .locator("#cancel-order [name=email]")
+      .fill("customer@example.com");
+    await page
+      .getByRole("button", { name: "Cancel order", exact: true })
+      .click();
+    await page
+      .getByText("Order cancelled.", { exact: false })
+      .first()
+      .waitFor();
+    assert.equal(await page.locator("#cancel-order").count(), 0);
+    assert.match(await page.locator("#tracking-result").innerText(), /refund/);
+    order.status = "dispatched";
+    await page.reload();
+    await page
+      .getByText("Online cancellation closes after dispatch.", { exact: false })
+      .waitFor();
+    assert.equal(await page.locator("#cancel-order").count(), 0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    );
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: mocked checkout records chosen wallet, creates downloadable QR, private-token page displays methods without customer details, received payments suppress further payment requests.",
+      "PASS: mocked checkout records chosen wallet, creates downloadable QR, private-token page displays methods without customer details, received payments suppress further payment requests; tracking, email verification errors, cancellation, refund messaging, dispatch restriction and mobile layout.",
     );
   } finally {
     await browser.close();
