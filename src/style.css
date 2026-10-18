@@ -620,12 +620,17 @@ textarea {
 .form-row > * {
   flex: 1;
 }
-.product-list {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin: 25px 0;
-}
+.owner-collection { margin-top: 40px; padding-top: 28px; border-top: 1px solid #d8ddce; }
+.product-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; margin: 20px 0; }
+.owner-product { display: flex; flex-direction: column; align-items: stretch; padding: 10px; text-align: left; gap: 8px; min-width: 0; }
+.owner-product[aria-pressed="true"] { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); background: #edf0e6; }
+.owner-product-image { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 1; overflow: hidden; background: #e8e2d7; border-radius: 2px; }
+.owner-product-image img { position: absolute; inset: 0; z-index: 1; }
+.image-fallback { font-size: 32px; color: #8c7050; }
+.owner-product-name { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.owner-product-price, .owner-product-status { font-size: 11px; }
+.owner-product-status { color: #777c71; }
+
 #toast {
   position: fixed;
   bottom: 25px;

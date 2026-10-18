@@ -485,16 +485,20 @@ function renderPanel(tab, products) {
     };
     return;
   }
-  panel.innerHTML = `<h3>Your collection</h3><div class="product-list">${products.map((p) => `<button data-edit="${e(p.id)}">${e(p.name)} · ${money(priceOf(p))} ${p.active ? "" : "(hidden)"}</button>`).join("")}</div><h3 id="edit-title">Add a product</h3><form id="product-form"><input type="hidden" name="id"><label>Name<input name="name" required maxlength="150"></label><label>Category<input name="category" required maxlength="60"></label><label>Description<textarea name="description" required maxlength="3000"></textarea></label><div class="form-row"><label>Original price<input name="price" type="number" min="1" step="0.01" required></label><label>Discount price (optional)<input name="sale_price" type="number" min="1" step="0.01"></label></div><label>Offer<input name="offer" maxlength="500"></label><label>Upload photos (JPEG, PNG, WebP; up to 5 MB each)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><label class="check"><input name="active" type="checkbox" checked> Visible in store</label><button class="primary">Save product</button><button type="button" id="new-product">New product</button><p id="product-error" role="alert"></p></form>`;
+  panel.innerHTML = `<h3 id="edit-title">Add a product</h3><form id="product-form"><input type="hidden" name="id"><label>Name<input name="name" required maxlength="150"></label><label>Category<input name="category" required maxlength="60"></label><label>Description<textarea name="description" required maxlength="3000"></textarea></label><div class="form-row"><label>Original price<input name="price" type="number" min="1" step="0.01" required></label><label>Discount price (optional)<input name="sale_price" type="number" min="1" step="0.01"></label></div><label>Offer<input name="offer" maxlength="500"></label><label>Upload photos (JPEG, PNG, WebP; up to 5 MB each)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><label class="check"><input name="active" type="checkbox" checked> Visible in store</label><button class="primary">Save product</button><button type="button" id="new-product">New product</button><p id="product-error" role="alert"></p></form><section class="owner-collection" aria-labelledby="collection-title"><h3 id="collection-title">Your collection</h3><p class="muted">Select a product to edit its details above.</p><div class="product-list">${products.map((p) => `<button type="button" class="owner-product" data-edit="${e(p.id)}" aria-pressed="false"><span class="owner-product-image">${p.images?.[0] ? img(p.images[0],p.name) : ''}<span class="image-fallback" aria-hidden="true">✧</span></span><span class="owner-product-name">${e(p.name)}</span><span class="owner-product-price">${money(priceOf(p))}</span>${p.active ? '' : '<span class="owner-product-status">Hidden</span>'}</button>`).join("") || '<p class="muted">Your products will appear here after you add them.</p>'}</div></section>`;
   const form = panel.querySelector("form");
   panel.querySelector("#new-product").onclick = () => {
     form.reset();
     form.elements.id.value = "";
+    panel.querySelector("#edit-title").textContent = "Add a product";
+    panel.querySelectorAll("[data-edit]").forEach(button => button.setAttribute("aria-pressed", "false"));
   };
   panel.querySelectorAll("[data-edit]").forEach(
     (b) =>
       (b.onclick = () => {
         const p = products.find((p) => p.id === b.dataset.edit);
+        form.reset();
+        panel.querySelectorAll("[data-edit]").forEach(button => button.setAttribute("aria-pressed", String(button === b)));
         for (const key of [
           "id",
           "name",
@@ -507,6 +511,8 @@ function renderPanel(tab, products) {
           form.elements[key].value = p[key] ?? "";
         form.elements.active.checked = p.active;
         panel.querySelector("#edit-title").textContent = "Edit product";
+        panel.querySelector("#edit-title").scrollIntoView({block:"start"});
+        form.elements.name.focus({preventScroll:true});
       }),
   );
   form.onsubmit = async (ev) => {
