@@ -1,5 +1,7 @@
 # Sehar Crafts
 
+Custom storefront domain: `https://seharcrafts.infy.click/` (activation requires GitHub Pages and DNS settings). See [custom domain and Resend setup](docs/custom-domain.md).
+
 A responsive handmade decor storefront and separate owner studio, designed for GitHub Pages with Supabase for authentication, products, photos, and orders.
 
 ## What works now
@@ -76,7 +78,7 @@ The included `.github/workflows/pages.yml` builds and deploys pushes to `main`.
    - Public: `https://innovativedeciphering.github.io/SeharCrafts/`
    - Owner: `https://innovativedeciphering.github.io/SeharCrafts/#/owner`
 
-The owner URL is a separate route, not a security secret; Supabase authentication and row-level security protect owner actions. GitHub Pages hosts the public files only. There is no customer database or secret storage inside GitHub Pages. The workflow uses `/SeharCrafts/` as Vite's base path; adjust it if you rename the repository or use a custom domain.
+The owner URL is a separate route, not a security secret; Supabase authentication and row-level security protect owner actions. GitHub Pages hosts the public files only. There is no customer database or secret storage inside GitHub Pages. The workflow reads the Pages base path with `actions/configure-pages`: it builds for `/SeharCrafts/` on the default GitHub URL and `/` when the custom domain is configured. `public/CNAME` contains the intended custom hostname, but GitHub Pages settings and DNS must also be updated.
 
 ## Suggested launch roadmap
 
@@ -102,7 +104,7 @@ Customers choose an enabled payment method at checkout. The server validates ava
 
 For **new** databases, run the updated `supabase/schema.sql` once. If you already ran the previous schema, run **only** `supabase/payment-upgrade.sql` once instead, and redeploy the notification worker. Do not rerun the base schema on an existing database. Existing orders are marked as having no recorded payment preference. Their new payment tokens allow the owner to share payment pages.
 
-The email worker defaults to this repository’s GitHub Pages address. If hosting elsewhere, set its non-secret `STORE_URL` to the full storefront URL including the path, such as `https://example.com/SeharCrafts/`, then test the email link.
+The email worker keeps the existing GitHub Pages address as its fallback until custom-domain verification is complete. Set `STORE_URL=https://seharcrafts.infy.click/` only after the new address works. If hosting elsewhere, set its non-secret `STORE_URL` to the full storefront URL including the path, such as `https://example.com/SeharCrafts/`, then test the email link.
 
 QR unit tests decode the generated PNG to verify the exact order URL. A mocked-backend browser test additionally exercises payment selection, order confirmation, QR download, private-token routing and suppression of further payment requests after receipt. To run it separately from the normal demo dev server:
 

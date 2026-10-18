@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0 --base=/SeharCrafts/",
+    "preview": "vite preview --host 0.0.0.0",
     "test": "node --test",
     "test:browser": "node scripts/smoke.cjs",
     "test:db": "bash scripts/test-database.sh"
