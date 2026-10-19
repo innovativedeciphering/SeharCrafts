@@ -31,6 +31,9 @@ const assert = require("node:assert/strict");
       bank_account_title: "Sample Owner",
       bank_iban: "PK-SAMPLE",
       cod_enabled: true,
+      instagram_url: "https://www.instagram.com/seharcrafts/",
+      facebook_url: "https://www.facebook.com/seharcrafts/",
+      tiktok_url: "https://www.tiktok.com/@seharcrafts",
     };
     let placed;
     await page.route("https://sehar-test.supabase.co/**", async (route) => {
@@ -84,10 +87,13 @@ const assert = require("node:assert/strict");
       });
     });
     await page.goto(process.env.PAYMENT_TEST_URL || "http://127.0.0.1:5175");
+    assert.equal(await page.locator(".social-icon").count(), 3);
+    assert.equal(await page.getByRole("link", { name: "Sehar Crafts on Instagram" }).getAttribute("href"), settings.instagram_url);
     await page.getByRole("button", { name: "Test vase", exact: true }).click();
     await page.locator("#quantity").fill("2");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.locator("#cart").click();
+    await page.getByRole("button", { name: "Check out", exact: true }).click();
     await page.getByLabel("Your name", { exact: true }).fill("Test Customer");
     await page
       .getByLabel("Email", { exact: true })

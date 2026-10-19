@@ -980,3 +980,87 @@ nav {
   padding-top: 24px;
   border-top: 1px solid #d8ddce;
 }
+
+/* Persistent bag and social profiles */
+.floating-bag {
+  position: fixed;
+  left: max(22px, env(safe-area-inset-left));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 18px;
+  border-radius: 30px;
+  background: var(--green);
+  color: white;
+  box-shadow: 0 5px 25px #243a3230;
+  font-size: 13px;
+}
+.floating-bag:hover { background: #263f31; }
+.floating-bag svg { width: 22px; height: 22px; }
+.floating-bag span { margin: 0; color: var(--green); min-width: 26px; text-align: center; }
+#toast { bottom: 90px; }
+footer { padding-bottom: 95px; }
+#social-links .social-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #d6dacd;
+  border-radius: 50%;
+  transition: background .2s, transform .2s;
+}
+.social-icon svg { width: 21px; height: 21px; }
+.social-icon:hover { background: #eaece3; transform: translateY(-2px); }
+dialog.bag-dialog {
+  position: fixed;
+  inset: auto auto 92px 22px;
+  margin: 0;
+  width: 460px;
+  max-width: calc(100vw - 44px);
+  height: min(680px, calc(100dvh - 120px));
+  max-height: calc(100dvh - 120px);
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: bag-arrive .32s cubic-bezier(.2,.8,.2,1) both;
+}
+.bag-heading { padding: 28px 30px 15px; border-bottom: 1px solid #e3e4d9; }
+.bag-heading .eyebrow { margin-bottom: 10px; }
+.bag-heading h2 { font-size: 32px; margin-bottom: 8px; }
+.bag-heading p:last-child { margin: 0; }
+.bag-items { overflow-y: auto; flex: 1; min-height: 0; padding: 0 25px; }
+.bag-item { display: flex; align-items: center; gap: 15px; padding: 22px 0; border-bottom: 1px solid #e3e4d9; }
+.bag-thumbnail { width: 80px; height: 92px; flex-shrink: 0; background: var(--cream); border-radius: 8px; overflow: hidden; }
+.bag-item-copy { flex: 1; min-width: 0; }
+.bag-item h3 { font-size: 14px; margin-bottom: 7px; overflow-wrap: anywhere; }
+.bag-item p { margin-bottom: 6px; }
+.bag-item strong { font-size: 13px; }
+.bag-remove { border: 0; padding: 8px; color: #923c2d; font-size: 24px; }
+.bag-remove span { display: block; font-size: 10px; }
+.bag-checkout { flex-shrink: 0; padding: 20px 25px 12px; background: #f0ece2; border-top: 1px solid #d6dacd; }
+.bag-checkout > div { display: flex; justify-content: space-between; gap: 10px; }
+.bag-checkout p { margin: 8px 0 12px; }
+.bag-checkout .primary { width: 100%; border-radius: 6px; font-size: 14px; }
+.bag-continue { display: block; border: 0; margin: 4px auto 0; font-size: 12px; }
+.bag-empty { text-align: center; padding: 55px 0; }
+@keyframes bag-arrive {
+  from { opacity: 0; transform: translateY(24px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (max-width: 600px) {
+  .floating-bag { left: 15px; bottom: max(15px, env(safe-area-inset-bottom)); padding: 11px 14px; }
+  dialog.bag-dialog { left: 12px; bottom: 82px; max-width: calc(100vw - 24px); height: min(650px, calc(100dvh - 105px)); max-height: calc(100dvh - 105px); }
+  .bag-heading { padding: 25px 20px 15px; }
+  .bag-items { padding: 0 18px; }
+  .bag-thumbnail { width: 64px; height: 78px; }
+  .bag-checkout { padding: 16px 18px 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.bag-dialog { animation: none; }
+}
+dialog.bag-dialog:not([open]) { display: none; }

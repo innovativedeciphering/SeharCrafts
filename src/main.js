@@ -88,7 +88,7 @@ function toast(message) {
   window.toastTimer = setTimeout(() => (node.hidden = true), 6000);
 }
 function shell() {
-  app.innerHTML = `<div class="announcement">Thoughtfully made. Beautifully yours. <span>Handcrafted with love in every detail</span></div><header><a class="brand" href="#/">sehar<span>CRAFTS & LITTLE JOYS</span></a><nav><a href="#/">Shop collection</a><a href="#story">Our story</a><a href="#/track">Track order</a><a href="#/owner">Owner studio</a><select id="display-currency" aria-label="Display currency"><option>PKR</option><option value="USD" ${state.settings.usd_rate ? "" : "disabled"}>USD estimate</option></select></nav><button class="bag" id="cart">Bag <span id="count">${state.cart.reduce((s, i) => s + i.quantity, 0)}</span></button></header><main id="view"></main><footer><a class="brand" href="#/">sehar<span>MADE BY HAND, KEPT BY HEART.</span></a><p>Handcrafts, home accents & thoughtful gifts.</p><div id="social-links"></div><a href="#/owner">Owner studio ↗</a><small>© ${new Date().getFullYear()} Sehar Crafts</small></footer><button id="chat-open" class="chat-open">✧ Ask Sehar</button><section id="chat" class="chat" hidden><div class="chat-title">Your shopping companion <button id="chat-close" aria-label="Close assistant">×</button></div><p class="muted">Automated store guide · not a live person or AI model</p><div id="chat-log" aria-live="polite"><p>Hello! I can help with products, prices, ordering, delivery, and payment.</p></div><form id="chat-form"><input name="message" aria-label="Message" placeholder="Ask about our collection…" required maxlength="500"><button>Send</button></form></section><dialog id="modal"></dialog><div id="toast" role="status" hidden></div>`;
+  app.innerHTML = `<div class="announcement">Thoughtfully made. Beautifully yours. <span>Handcrafted with love in every detail</span></div><header><a class="brand" href="#/">sehar<span>CRAFTS & LITTLE JOYS</span></a><nav><a href="#/">Shop collection</a><a href="#story">Our story</a><a href="#/track">Track order</a><a href="#/owner">Owner studio</a><select id="display-currency" aria-label="Display currency"><option>PKR</option><option value="USD" ${state.settings.usd_rate ? "" : "disabled"}>USD estimate</option></select></nav></header><main id="view"></main><footer><a class="brand" href="#/">sehar<span>MADE BY HAND, KEPT BY HEART.</span></a><p>Handcrafts, home accents & thoughtful gifts.</p><div id="social-links"></div><a href="#/owner">Owner studio ↗</a><small>© ${new Date().getFullYear()} Sehar Crafts</small></footer><button class="bag floating-bag" id="cart" aria-label="Open bag, 0 items" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 7h14l1 14H4L5 7Z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg>Bag <span id="count" aria-live="polite">${state.cart.reduce((s, i) => s + i.quantity, 0)}</span></button><button id="chat-open" class="chat-open">✧ Ask Sehar</button><section id="chat" class="chat" hidden><div class="chat-title">Your shopping companion <button id="chat-close" aria-label="Close assistant">×</button></div><p class="muted">Automated store guide · not a live person or AI model</p><div id="chat-log" aria-live="polite"><p>Hello! I can help with products, prices, ordering, delivery, and payment.</p></div><form id="chat-form"><input name="message" aria-label="Message" placeholder="Ask about our collection…" required maxlength="500"><button>Send</button></form></section><dialog id="modal"></dialog><div id="toast" role="status" hidden></div>`;
   document.querySelector("#cart").onclick = showCart;
   document.querySelector("#display-currency").onchange = (ev) => {
     state.displayCurrency = ev.target.value;
@@ -125,6 +125,16 @@ function shell() {
     log.scrollTop = log.scrollHeight;
   };
 }
+const socialIcons = {
+  instagram: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".8" fill="currentColor" stroke="none"/>',
+  facebook: '<path d="M14 21v-8h3l.5-4H14V7c0-1 .4-2 2-2h2V1.5A23 23 0 0 0 15 1c-3 0-5 2-5 6v2H7v4h3v8"/>',
+  tiktok: '<path d="M14 3h3c.5 3 2 4 4 4v3a9 9 0 0 1-4-1v8a6 6 0 1 1-6-6v3a3 3 0 1 0 3 3V3Z"/>',
+};
+function updateBagCount() {
+  const count = state.cart.reduce((sum, item) => sum + item.quantity, 0);
+  document.querySelector("#count").textContent = count;
+  document.querySelector("#cart").setAttribute("aria-label", `Open bag, ${count} ${count === 1 ? "item" : "items"}`);
+}
 function renderSocials() {
   document.querySelector("#social-links").innerHTML = [
     "instagram",
@@ -134,7 +144,7 @@ function renderSocials() {
     .map((name) => {
       const url = state.settings[name + "_url"];
       return url && safeImage(url)
-        ? `<a href="${e(safeImage(url))}" target="_blank" rel="noopener noreferrer">${name[0].toUpperCase() + name.slice(1)} ↗</a>`
+        ? `<a href="${e(safeImage(url))}" target="_blank" rel="noopener noreferrer" class="social-icon" aria-label="Sehar Crafts on ${name[0].toUpperCase() + name.slice(1)}" title="${name[0].toUpperCase() + name.slice(1)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">${socialIcons[name]}</svg></a>`
         : "";
     })
     .join(" ");
@@ -187,6 +197,8 @@ function storefront() {
 function modal(html) {
   const d = document.querySelector("#modal");
   if (d.open) d.close();
+  d.className = "";
+  d.removeAttribute("aria-labelledby");
   d.innerHTML = `<button class="close" aria-label="Close">×</button>${html}`;
   d.querySelector(".close").onclick = () => d.close();
   d.onclick = (ev) => {
@@ -231,15 +243,34 @@ function showProduct(id) {
       return toast("Maximum 20 of each item per order.");
     if (item) item.quantity += q;
     else state.cart.push({ id, quantity: q });
-    document.querySelector("#count").textContent = state.cart.reduce(
-      (s, i) => s + i.quantity,
-      0,
-    );
+    updateBagCount();
     d.close();
     toast("A little joy added to your bag.");
   };
 }
 function showCart() {
+  const count = state.cart.reduce((sum, item) => sum + item.quantity, 0);
+  const d = modal(`<div class="bag-heading"><p class="eyebrow">CHOSEN WITH LOVE</p><h2 id="bag-title">Your little joys</h2><p class="muted">${count} ${count === 1 ? "item" : "items"} in your bag</p></div><div class="bag-items">${state.cart.length ? state.cart.map((item) => {
+    const p = state.products.find((product) => product.id === item.id);
+    return `<article class="bag-item"><div class="bag-thumbnail">${img(p.images[0], p.name)}</div><div class="bag-item-copy"><h3>${e(p.name)}</h3><p class="muted">Quantity: ${item.quantity}</p><strong>${money(priceOf(p) * item.quantity)}</strong></div><button data-remove="${e(item.id)}" class="bag-remove" aria-label="Remove ${e(p.name)}">×<span>Remove</span></button></article>`;
+  }).join("") : '<div class="bag-empty"><p>Your bag is waiting for something lovely.</p><button id="continue-shopping">Explore the collection ↗</button></div>'}</div>${state.cart.length ? `<div class="bag-checkout"><div><span>Subtotal</span><strong>${money(totalOf(state.cart, state.products))}</strong></div><p class="muted">Delivery charges are confirmed before payment.</p><button class="primary" id="proceed-checkout">Check out <span aria-hidden="true">↗</span></button><button class="bag-continue" id="continue-shopping">Continue shopping</button></div>` : ""}`);
+  d.className = "bag-dialog";
+  d.setAttribute("aria-labelledby", "bag-title");
+  d.querySelectorAll("[data-remove]").forEach((button) => {
+    button.onclick = () => {
+      const index = state.cart.findIndex((item) => item.id === button.dataset.remove);
+      state.cart = state.cart.filter((item) => item.id !== button.dataset.remove);
+      updateBagCount();
+      showCart();
+      const buttons = d.querySelectorAll("[data-remove]");
+      (buttons[Math.min(index, buttons.length - 1)] || d.querySelector("#continue-shopping")).focus();
+    };
+  });
+  d.querySelector("#continue-shopping").onclick = () => d.close();
+  const checkout = d.querySelector("#proceed-checkout");
+  if (checkout) checkout.onclick = showCheckout;
+}
+function showCheckout() {
   const d = modal(
     `<h2>Your little joys</h2>${
       state.cart.length
@@ -267,10 +298,7 @@ function showCart() {
     (b) =>
       (b.onclick = () => {
         state.cart = state.cart.filter((i) => i.id !== b.dataset.remove);
-        document.querySelector("#count").textContent = state.cart.reduce(
-          (s, i) => s + i.quantity,
-          0,
-        );
+        updateBagCount();
         showCart();
       }),
   );
@@ -303,7 +331,7 @@ function showCart() {
         return;
       }
       state.cart = [];
-      document.querySelector("#count").textContent = "0";
+      updateBagCount();
       const d = modal('<div id="payment-result"></div>');
       await renderPayment(
         data,
