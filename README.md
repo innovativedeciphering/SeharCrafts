@@ -54,7 +54,7 @@ The backend schema has not been tested against your hosted Supabase project unti
 
 ## Alerts while the owner is logged out
 
-Recommended starting option: **email**, using Supabase Edge Functions and Resend. These services may have free tiers subject to current limits; this project does not promise permanently free delivery. SMS and WhatsApp business notifications usually incur charges or require provider approval. Browser alerts do not work when the page is closed.
+Email delivery uses Supabase Edge Functions with either **Resend** or the **Gmail API**. For owner and customer emails without a verified sender domain, follow [Gmail sending](docs/gmail-sending.md); the owner must authorize her Google account. The Resend setup below remains available. These services may have free tiers subject to current limits; this project does not promise permanently free delivery. SMS and WhatsApp business notifications usually incur charges or require provider approval. Browser alerts do not work when the page is closed.
 
 1. Create a Resend account, verify a sending domain you control, and create an API key. A verified domain is generally needed to email real customers; a testing sender may be restricted to your own address.
 2. Install the Supabase CLI and authenticate it to your project. Deploy `supabase/functions/notify-orders`. Its `verify_jwt = false` configuration is intentional: the function independently checks a dedicated `x-notification-secret` before doing any work.

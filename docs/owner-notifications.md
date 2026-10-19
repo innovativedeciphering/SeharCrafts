@@ -37,3 +37,7 @@ Before starting the schedule, inspect `notification_events` in Supabase for pend
 4. Change the order's status and payment status; check the next alert. Customer cancellation also queues an alert.
 
 If notifications are still undeployed, deploy the worker and configure Cron before expecting mail. Owner Gmail alerts are separate from Gmail's own SMTP sending service. The current integration does not send from or sign into the owner's Gmail account, and does not need her Gmail password.
+
+## Customer confirmations without a verified domain
+
+To send to customers as well as the owner using Sehar's Gmail, use the [Gmail API setup](gmail-sending.md). It requires the owner to authorize Google access, secure Supabase credentials, `EMAIL_PROVIDER=gmail`, `NOTIFICATION_MODE=owner_and_customer`, and deployment of the updated function. Gmail authorization is separate from GitHub/Resend sign-in. Resend's test sender remains restricted to the registered account email if you continue using Resend.
