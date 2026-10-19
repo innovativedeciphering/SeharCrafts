@@ -876,7 +876,7 @@ nav select {
     object-position: center;
   }
 }
-#social-links {
+.social-links {
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
@@ -1002,7 +1002,7 @@ nav {
 .floating-bag span { margin: 0; color: var(--green); min-width: 26px; text-align: center; }
 #toast { bottom: 90px; }
 footer { padding-bottom: 95px; }
-#social-links .social-icon {
+.social-links .social-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1012,7 +1012,7 @@ footer { padding-bottom: 95px; }
   border-radius: 50%;
   transition: background .2s, transform .2s;
 }
-.social-icon svg { width: 21px; height: 21px; }
+.social-icon img { width: 26px; height: 26px; object-fit: contain; }
 .social-icon:hover { background: #eaece3; transform: translateY(-2px); }
 dialog.bag-dialog {
   position: fixed;
@@ -1064,3 +1064,20 @@ dialog.bag-dialog {
   dialog.bag-dialog { animation: none; }
 }
 dialog.bag-dialog:not([open]) { display: none; }
+
+header { gap: 24px; }
+#header-social-links { flex-shrink: 0; flex-wrap: nowrap; gap: 8px; }
+#header-social-links .social-icon { width: 38px; height: 38px; }
+.social-links .social-icon { background: white; }
+.social-links .social-icon:hover { background: #f0ece2; }
+@media (max-width: 1100px) {
+  header { height: auto; min-height: 112px; padding-top: 18px; padding-bottom: 18px; flex-wrap: wrap; gap: 14px; }
+  header > nav { order: 3; width: 100%; justify-content: center; }
+  #header-social-links { margin-left: auto; }
+}
+@media (max-width: 600px) {
+  header { padding-top: 14px; padding-bottom: 14px; }
+  header > nav { gap: 14px; }
+  #header-social-links .social-icon { width: 34px; height: 34px; }
+  #header-social-links { gap: 6px; }
+}

@@ -87,8 +87,21 @@ const assert = require("node:assert/strict");
       });
     });
     await page.goto(process.env.PAYMENT_TEST_URL || "http://127.0.0.1:5175");
-    assert.equal(await page.locator(".social-icon").count(), 3);
-    assert.equal(await page.getByRole("link", { name: "Sehar Crafts on Instagram" }).getAttribute("href"), settings.instagram_url);
+    assert.equal(await page.locator(".social-icon").count(), 6);
+    assert.equal(await page.locator("header").getByRole("link", { name: "Sehar Crafts on Instagram" }).getAttribute("href"), settings.instagram_url);
+    for (const width of [390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      assert.equal(await page.locator("header .social-icon").count(), 3);
+      for (const image of await page.locator("header .social-icon img").all()) {
+        await image.evaluate((el) => el.decode());
+        assert.ok(await image.evaluate((el) => el.naturalWidth > 0));
+      }
+    }
+    await page.screenshot({ path: "/tmp/sehar-header-desktop.png" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: "/tmp/sehar-header-mobile.png" });
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.getByRole("button", { name: "Test vase", exact: true }).click();
     await page.locator("#quantity").fill("2");
     await page.getByRole("button", { name: "Add to bag" }).click();

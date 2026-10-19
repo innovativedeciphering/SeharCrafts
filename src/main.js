@@ -88,7 +88,7 @@ function toast(message) {
   window.toastTimer = setTimeout(() => (node.hidden = true), 6000);
 }
 function shell() {
-  app.innerHTML = `<div class="announcement">Thoughtfully made. Beautifully yours. <span>Handcrafted with love in every detail</span></div><header><a class="brand" href="#/">sehar<span>CRAFTS & LITTLE JOYS</span></a><nav><a href="#/">Shop collection</a><a href="#story">Our story</a><a href="#/track">Track order</a><a href="#/owner">Owner studio</a><select id="display-currency" aria-label="Display currency"><option>PKR</option><option value="USD" ${state.settings.usd_rate ? "" : "disabled"}>USD estimate</option></select></nav></header><main id="view"></main><footer><a class="brand" href="#/">sehar<span>MADE BY HAND, KEPT BY HEART.</span></a><p>Handcrafts, home accents & thoughtful gifts.</p><div id="social-links"></div><a href="#/owner">Owner studio ↗</a><small>© ${new Date().getFullYear()} Sehar Crafts</small></footer><button class="bag floating-bag" id="cart" aria-label="Open bag, 0 items" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 7h14l1 14H4L5 7Z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg>Bag <span id="count" aria-live="polite">${state.cart.reduce((s, i) => s + i.quantity, 0)}</span></button><button id="chat-open" class="chat-open">✧ Ask Sehar</button><section id="chat" class="chat" hidden><div class="chat-title">Your shopping companion <button id="chat-close" aria-label="Close assistant">×</button></div><p class="muted">Automated store guide · not a live person or AI model</p><div id="chat-log" aria-live="polite"><p>Hello! I can help with products, prices, ordering, delivery, and payment.</p></div><form id="chat-form"><input name="message" aria-label="Message" placeholder="Ask about our collection…" required maxlength="500"><button>Send</button></form></section><dialog id="modal"></dialog><div id="toast" role="status" hidden></div>`;
+  app.innerHTML = `<div class="announcement">Thoughtfully made. Beautifully yours. <span>Handcrafted with love in every detail</span></div><header><a class="brand" href="#/">sehar<span>CRAFTS & LITTLE JOYS</span></a><nav><a href="#/">Shop collection</a><a href="#story">Our story</a><a href="#/track">Track order</a><a href="#/owner">Owner studio</a><select id="display-currency" aria-label="Display currency"><option>PKR</option><option value="USD" ${state.settings.usd_rate ? "" : "disabled"}>USD estimate</option></select></nav><div id="header-social-links" class="social-links" aria-label="Social media profiles"></div></header><main id="view"></main><footer><a class="brand" href="#/">sehar<span>MADE BY HAND, KEPT BY HEART.</span></a><p>Handcrafts, home accents & thoughtful gifts.</p><div id="social-links" class="social-links" aria-label="Social media profiles"></div><a href="${import.meta.env.BASE_URL}privacy.html">Privacy policy</a><a href="#/owner">Owner studio ↗</a><small>© ${new Date().getFullYear()} Sehar Crafts</small></footer><button class="bag floating-bag" id="cart" aria-label="Open bag, 0 items" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 7h14l1 14H4L5 7Z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg>Bag <span id="count" aria-live="polite">${state.cart.reduce((s, i) => s + i.quantity, 0)}</span></button><button id="chat-open" class="chat-open">✧ Ask Sehar</button><section id="chat" class="chat" hidden><div class="chat-title">Your shopping companion <button id="chat-close" aria-label="Close assistant">×</button></div><p class="muted">Automated store guide · not a live person or AI model</p><div id="chat-log" aria-live="polite"><p>Hello! I can help with products, prices, ordering, delivery, and payment.</p></div><form id="chat-form"><input name="message" aria-label="Message" placeholder="Ask about our collection…" required maxlength="500"><button>Send</button></form></section><dialog id="modal"></dialog><div id="toast" role="status" hidden></div>`;
   document.querySelector("#cart").onclick = showCart;
   document.querySelector("#display-currency").onchange = (ev) => {
     state.displayCurrency = ev.target.value;
@@ -125,18 +125,13 @@ function shell() {
     log.scrollTop = log.scrollHeight;
   };
 }
-const socialIcons = {
-  instagram: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".8" fill="currentColor" stroke="none"/>',
-  facebook: '<path d="M14 21v-8h3l.5-4H14V7c0-1 .4-2 2-2h2V1.5A23 23 0 0 0 15 1c-3 0-5 2-5 6v2H7v4h3v8"/>',
-  tiktok: '<path d="M14 3h3c.5 3 2 4 4 4v3a9 9 0 0 1-4-1v8a6 6 0 1 1-6-6v3a3 3 0 1 0 3 3V3Z"/>',
-};
 function updateBagCount() {
   const count = state.cart.reduce((sum, item) => sum + item.quantity, 0);
   document.querySelector("#count").textContent = count;
   document.querySelector("#cart").setAttribute("aria-label", `Open bag, ${count} ${count === 1 ? "item" : "items"}`);
 }
 function renderSocials() {
-  document.querySelector("#social-links").innerHTML = [
+  const links = [
     "instagram",
     "facebook",
     "tiktok",
@@ -144,10 +139,14 @@ function renderSocials() {
     .map((name) => {
       const url = state.settings[name + "_url"];
       return url && safeImage(url)
-        ? `<a href="${e(safeImage(url))}" target="_blank" rel="noopener noreferrer" class="social-icon" aria-label="Sehar Crafts on ${name[0].toUpperCase() + name.slice(1)}" title="${name[0].toUpperCase() + name.slice(1)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">${socialIcons[name]}</svg></a>`
+        ? `<a href="${e(safeImage(url))}" target="_blank" rel="noopener noreferrer" class="social-icon social-${name}" aria-label="Sehar Crafts on ${name[0].toUpperCase() + name.slice(1)}" title="${name[0].toUpperCase() + name.slice(1)}"><img src="${import.meta.env.BASE_URL}social/${name}.svg" alt="" width="24" height="24"></a>`
         : "";
     })
     .join(" ");
+  document.querySelectorAll(".social-links").forEach((container) => {
+    container.innerHTML = links;
+    container.hidden = !links.trim();
+  });
 }
 function storefront() {
   const view = document.querySelector("#view");
