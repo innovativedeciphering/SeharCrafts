@@ -1,4 +1,4 @@
-import { passwordError, authRedirect } from "./auth.js";
+import { passwordError, authRedirect, createRecoveryStore } from "./auth.js";
 import QRCode from "qrcode";
 import {
   paymentFields,
@@ -44,17 +44,29 @@ const state = {
   owner: false,
   displayCurrency: "PKR",
 };
+const recoveryStore = createRecoveryStore({
+  getItem: (key) => sessionStorage.getItem(key),
+  setItem: (key, value) => sessionStorage.setItem(key, value),
+  removeItem: (key) => sessionStorage.removeItem(key),
+});
+let recoveryRecording = Promise.resolve();
 if (db)
   db.auth.onAuthStateChange((event, session) => {
     if (event === "PASSWORD_RECOVERY" && session) {
       state.passwordRecovery = true;
+      recoveryRecording = recoveryStore.remember(session);
       // Schedule outside the Auth callback to avoid awaiting Auth while its lock is held.
       setTimeout(() => {
-        location.hash = "/reset-password";
-        route().catch((err) => toast(err.message));
+        recoveryRecording
+          .then(() => {
+            location.hash = "/reset-password";
+            return route();
+          })
+          .catch((err) => toast(err.message));
       }, 0);
     } else if (event === "SIGNED_OUT") {
       state.passwordRecovery = false;
+      recoveryStore.clear();
     }
   });
 const app = document.querySelector("#app");
@@ -927,7 +939,10 @@ async function resetPassword() {
   view.innerHTML =
     '<section class="studio" id="reset-view"><h2>Set a new password</h2><p>Checking your recovery link…</p></section>';
   const target = view.querySelector("#reset-view");
-  if (!db || !state.passwordRecovery) {
+  if (db) await recoveryRecording;
+  const currentSession = db ? (await db.auth.getSession()).data.session : null;
+  if (!db || !(await recoveryStore.matches(currentSession))) {
+    state.passwordRecovery = false;
     target.innerHTML =
       '<h2>Request a recovery link</h2><p>This recovery link is missing, expired, or already used. A saved login session alone cannot authorize a password reset.</p><a class="auth-link" href="#/forgot-password">Request a new reset link</a>';
     return;
@@ -937,11 +952,20 @@ async function resetPassword() {
     error,
   } = await db.auth.getUser();
   const { data: allowed, error: ownerError } = await db.rpc("is_owner");
-  if (error || !user || ownerError || !allowed) {
+  if (
+    error ||
+    !user ||
+    user.id !== currentSession.user.id ||
+    ownerError ||
+    !allowed
+  ) {
+    recoveryStore.clear();
+    state.passwordRecovery = false;
     target.innerHTML =
       '<h2>Recovery could not be verified</h2><p>Use a fresh recovery link for the owner account.</p><a class="auth-link" href="#/forgot-password">Request a new reset link</a>';
     return;
   }
+  state.passwordRecovery = true;
   target.innerHTML = `<h2>Set a new password</h2><p>Your recovery link is verified. Choose a new password for your store owner login.</p><form id="reset-password"><label>New password<input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><label>Confirm new password<input name="confirm" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><button class="primary">Save new password</button><p id="reset-message" role="status"></p></form>`;
   // Auth has consumed the tokens; remove credentials and the recovery marker from the address bar.
   history.replaceState(
@@ -967,6 +991,7 @@ async function resetPassword() {
       if (error) throw error;
       form.reset();
       state.passwordRecovery = false;
+      recoveryStore.clear();
       await db.auth.signOut({ scope: "local" });
       history.replaceState(
         null,

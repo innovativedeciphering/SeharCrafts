@@ -152,6 +152,14 @@ const assert = require("node:assert/strict");
     }
     assert.equal(new URL(page.url()).hash, "#/reset-password");
     assert.equal(new URL(page.url()).search, "");
+    await page.reload();
+    await page.locator("#reset-password").waitFor();
+    const recoveryMarker = await page.evaluate(() =>
+      sessionStorage.getItem("sehar-owner-recovery"),
+    );
+    assert.ok(recoveryMarker);
+    assert.ok(!recoveryMarker.includes(jwt));
+
     await page
       .getByLabel("New password", { exact: true })
       .fill("recovered-password");
@@ -172,6 +180,10 @@ const assert = require("node:assert/strict");
       .getByRole("button", { name: "Save new password", exact: true })
       .click();
     await page.locator("#login").waitFor();
+    assert.equal(
+      await page.evaluate(() => sessionStorage.getItem("sehar-owner-recovery")),
+      null,
+    );
     assert.equal(passwordUpdates.length, 1);
     assert.equal(passwordUpdates[0].password, "recovered-password");
     assert.equal("email" in passwordUpdates[0], false);
@@ -215,7 +227,7 @@ const assert = require("node:assert/strict");
       .waitFor();
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: forgot-password request and rate-limit errors, redirect, saved-session bypass blocked, verified recovery, password confirmation, token cleanup, sign-out, expired links and non-owner recovery denied.",
+      "PASS: forgot-password request and rate-limit errors, redirect, saved-session bypass blocked, verified recovery after refresh, password confirmation, token cleanup, sign-out, expired links and non-owner recovery denied.",
     );
   } finally {
     await browser.close();
