@@ -1,3 +1,4 @@
+import { passwordError, authRedirect } from "./auth.js";
 import QRCode from "qrcode";
 import {
   paymentFields,
@@ -9,6 +10,9 @@ import { createClient } from "@supabase/supabase-js";
 import { demoProducts, sampleImage } from "./demo.js";
 import { priceOf, totalOf, escapeHtml as e, safeImage } from "./domain.js";
 import "./style.css";
+const recoveryReturn =
+  new URLSearchParams(location.search).get("auth") === "recovery" ||
+  new URLSearchParams(location.hash.slice(1)).get("type") === "recovery";
 const configured = Boolean(
   import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
@@ -34,9 +38,25 @@ const state = {
   testimonials: [],
   delivered: 0,
   ownerSettings: {},
+  passwordRecovery: false,
+  recoveryReturnHandled: false,
+  storeLoaded: false,
   owner: false,
   displayCurrency: "PKR",
 };
+if (db)
+  db.auth.onAuthStateChange((event, session) => {
+    if (event === "PASSWORD_RECOVERY" && session) {
+      state.passwordRecovery = true;
+      // Schedule outside the Auth callback to avoid awaiting Auth while its lock is held.
+      setTimeout(() => {
+        location.hash = "/reset-password";
+        route().catch((err) => toast(err.message));
+      }, 0);
+    } else if (event === "SIGNED_OUT") {
+      state.passwordRecovery = false;
+    }
+  });
 const app = document.querySelector("#app");
 const money = (value) =>
   new Intl.NumberFormat("en-PK", {
@@ -292,7 +312,7 @@ async function owner() {
   } = await db.auth.getSession();
   if (!session) {
     view.innerHTML =
-      '<section class="studio"><p class="eyebrow">OWNER STUDIO</p><h2>Welcome back.</h2><form id="login"><label>Email<input name="email" type="email" required autocomplete="username"></label><label>Password<input name="password" type="password" required autocomplete="current-password"></label><button class="primary">Sign in</button><p id="login-error" role="alert"></p></form></section>';
+      '<section class="studio"><p class="eyebrow">OWNER STUDIO</p><h2>Welcome back.</h2><form id="login"><label>Email<input name="email" type="email" required autocomplete="username"></label><label>Password<input name="password" type="password" required autocomplete="current-password"></label><button class="primary">Sign in</button><p id="login-error" role="alert"></p></form><p><a class="auth-link" href="#/forgot-password">Forgot password?</a></p></section>';
     view.querySelector("#login").onsubmit = async (ev) => {
       ev.preventDefault();
       const v = Object.fromEntries(new FormData(ev.target));
@@ -379,7 +399,11 @@ async function owner() {
   }, 30000);
 }
 async function renderAccount(panel) {
-  panel.innerHTML = `<h3>Account & login</h3><p>This changes the email for your existing owner account. Your products, orders and owner permissions stay with the same account.</p><p id="current-login-email">Loading current login…</p><form id="change-login-email"><label>New login email<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>Current password<input name="password" type="password" required autocomplete="current-password"></label><p class="muted">Confirm the messages Supabase sends to the old and new addresses, as required by your project settings. Your password stays the same. Keep your current session open until you can sign in with the new address.</p><button class="primary" disabled>Request email change</button><p id="account-message" role="status"></p></form><p class="muted">The notification receiving email is separate. Update it in Payment & delivery after confirming the new login email.</p>`;
+  panel.innerHTML = `<h3>Account & login</h3><p>This changes the email for your existing owner account. Your products, orders and owner permissions stay with the same account.</p><p id="current-login-email">Loading current login…</p><p><a class="auth-link" href="#/forgot-password">Forgot your current password? Send a reset link</a></p><form id="change-login-email"><label>New login email<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>Current password<input name="password" type="password" required autocomplete="current-password"></label><p class="muted">Confirm the message sent to your new email. For new-address-only confirmation, turn off Secure email change in Supabase while keeping Confirm email enabled. Your password stays the same. Keep your current session open until you can sign in with the new address.</p><button class="primary" disabled>Request email change</button><p id="account-message" role="status"></p></form><p class="muted">The notification receiving email is separate. Update it in Payment & delivery after confirming the new login email.</p>`;
+  panel.insertAdjacentHTML(
+    "beforeend",
+    `<section class="account-password"><h3>Change password</h3><form id="change-password"><label>Current password<input name="current" type="password" required autocomplete="current-password"></label><label>New password<input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><label>Confirm new password<input name="confirm" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><p class="muted">Use a strong, unique password for your store login. If you do not know the current password, use the reset link above.</p><button class="primary" disabled>Change password</button><p id="password-message" role="status"></p></form></section>`,
+  );
   const form = panel.querySelector("#change-login-email");
   const message = form.querySelector("#account-message");
   const button = form.querySelector("button");
@@ -393,6 +417,45 @@ async function renderAccount(panel) {
     panel.querySelector("#current-login-email").textContent =
       `Current login: ${user.email}${user.new_email ? " · Pending change: " + user.new_email : ""}`;
     button.disabled = false;
+    const change = panel.querySelector("#change-password");
+    const changeButton = change.querySelector("button");
+    const changeMessage = change.querySelector("#password-message");
+    changeButton.disabled = false;
+    change.onsubmit = async (event) => {
+      event.preventDefault();
+      const password = change.elements.password.value;
+      const issue = passwordError(password, change.elements.confirm.value);
+      if (issue) {
+        changeMessage.textContent = issue;
+        return;
+      }
+      if (password === change.elements.current.value) {
+        changeMessage.textContent = "Choose a different new password.";
+        return;
+      }
+      changeButton.disabled = true;
+      changeMessage.textContent = "Checking your current password…";
+      try {
+        const { data: reauth, error: reauthError } =
+          await db.auth.signInWithPassword({
+            email: user.email,
+            password: change.elements.current.value,
+          });
+        change.elements.current.value = "";
+        if (reauthError) throw reauthError;
+        if (reauth.user?.id !== user.id)
+          throw new Error("Account verification failed. Please sign in again.");
+        const { error: updateError } = await db.auth.updateUser({ password });
+        if (updateError) throw updateError;
+        change.reset();
+        changeMessage.textContent =
+          "Password changed. Use your new password the next time you sign in.";
+      } catch (err) {
+        changeMessage.textContent = err.message;
+      } finally {
+        changeButton.disabled = false;
+      }
+    };
     form.onsubmit = async (event) => {
       event.preventDefault();
       const email = form.elements.email.value.trim();
@@ -412,15 +475,17 @@ async function renderAccount(panel) {
         if (passwordError) throw passwordError;
         if (reauth.user?.id !== user.id)
           throw new Error("Account verification failed. Please sign in again.");
-        const redirect = new URL(import.meta.env.BASE_URL, location.origin)
-          .href;
+        const redirect = authRedirect(
+          import.meta.env.BASE_URL,
+          location.origin,
+        );
         const { error: updateError } = await db.auth.updateUser(
           { email },
           { emailRedirectTo: redirect },
         );
         if (updateError) throw updateError;
         message.textContent =
-          "Email change requested. Check the old and new inboxes for confirmation messages. After completing confirmation, test the new email with your existing password in a private browser window.";
+          "Email change requested. Check your new inbox for confirmation. After confirming, test the new email with your existing password in a private browser window. If Secure email change is still enabled in Supabase, the current inbox must also confirm.";
         button.textContent = "Email change requested";
       } catch (err) {
         message.textContent = err.message;
@@ -642,7 +707,10 @@ function renderPanel(tab, products) {
   };
 }
 async function load() {
-  if (!db) return;
+  if (!db) {
+    state.storeLoaded = true;
+    return;
+  }
   const results = await Promise.all([
     db
       .from("products")
@@ -660,6 +728,7 @@ async function load() {
   state.settings = results[1].data;
   state.testimonials = results[2].data;
   state.delivered = results[3].data;
+  state.storeLoaded = true;
   renderSocials();
   document.querySelector("#display-currency option[value=USD]").disabled =
     !state.settings.usd_rate;
@@ -813,11 +882,147 @@ async function trackingRoute() {
     };
 }
 
+async function forgotPassword() {
+  const view = document.querySelector("#view");
+  view.innerHTML = `<section class="studio"><p class="eyebrow">OWNER ACCOUNT RECOVERY</p><h2>Forgot your password?</h2><p>Enter your current store login email. We’ll request a secure link to set a new password.</p><form id="forgot-password"><label>Login email<input name="email" type="email" required maxlength="254" autocomplete="email"></label><button class="primary" ${db ? "" : "disabled"}>Send reset link</button><p id="recovery-message" role="status"></p></form><p class="muted">Use the address currently shown in Account & login. A new notification email does not automatically change the login email.</p><a class="auth-link" href="#/owner">Back to owner studio</a></section>`;
+  const form = view.querySelector("#forgot-password");
+  if (!db) {
+    form.querySelector("#recovery-message").textContent =
+      "Connect Supabase to enable account recovery.";
+    return;
+  }
+  const {
+    data: { session },
+  } = await db.auth.getSession();
+  if (session?.user?.email) form.elements.email.value = session.user.email;
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const button = form.querySelector("button");
+    const message = form.querySelector("#recovery-message");
+    button.disabled = true;
+    message.textContent = "Requesting a reset link…";
+    try {
+      const { error } = await db.auth.resetPasswordForEmail(
+        form.elements.email.value.trim(),
+        {
+          redirectTo: authRedirect(
+            import.meta.env.BASE_URL,
+            location.origin,
+            true,
+          ),
+        },
+      );
+      if (error) throw error;
+      message.textContent =
+        "If this email belongs to an account, a reset link has been requested. Check that inbox and spam folder. Keep this session open if you are already signed in.";
+      button.textContent = "Reset link requested";
+    } catch (err) {
+      message.textContent = err.message;
+      button.disabled = false;
+    }
+  };
+}
+async function resetPassword() {
+  const view = document.querySelector("#view");
+  view.innerHTML =
+    '<section class="studio" id="reset-view"><h2>Set a new password</h2><p>Checking your recovery link…</p></section>';
+  const target = view.querySelector("#reset-view");
+  if (!db || !state.passwordRecovery) {
+    target.innerHTML =
+      '<h2>Request a recovery link</h2><p>This recovery link is missing, expired, or already used. A saved login session alone cannot authorize a password reset.</p><a class="auth-link" href="#/forgot-password">Request a new reset link</a>';
+    return;
+  }
+  const {
+    data: { user },
+    error,
+  } = await db.auth.getUser();
+  const { data: allowed, error: ownerError } = await db.rpc("is_owner");
+  if (error || !user || ownerError || !allowed) {
+    target.innerHTML =
+      '<h2>Recovery could not be verified</h2><p>Use a fresh recovery link for the owner account.</p><a class="auth-link" href="#/forgot-password">Request a new reset link</a>';
+    return;
+  }
+  target.innerHTML = `<h2>Set a new password</h2><p>Your recovery link is verified. Choose a new password for your store owner login.</p><form id="reset-password"><label>New password<input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><label>Confirm new password<input name="confirm" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><button class="primary">Save new password</button><p id="reset-message" role="status"></p></form>`;
+  // Auth has consumed the tokens; remove credentials and the recovery marker from the address bar.
+  history.replaceState(
+    null,
+    "",
+    authRedirect(import.meta.env.BASE_URL, location.origin) +
+      "#/reset-password",
+  );
+  const form = target.querySelector("form");
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const button = form.querySelector("button");
+    const message = form.querySelector("#reset-message");
+    const password = form.elements.password.value;
+    const issue = passwordError(password, form.elements.confirm.value);
+    if (issue) {
+      message.textContent = issue;
+      return;
+    }
+    button.disabled = true;
+    try {
+      const { error } = await db.auth.updateUser({ password });
+      if (error) throw error;
+      form.reset();
+      state.passwordRecovery = false;
+      await db.auth.signOut({ scope: "local" });
+      history.replaceState(
+        null,
+        "",
+        authRedirect(import.meta.env.BASE_URL, location.origin) + "#/owner",
+      );
+      await route();
+      toast("Password updated. Sign in with your new password.");
+    } catch (err) {
+      message.textContent = err.message;
+      button.disabled = false;
+    }
+  };
+}
+
+function confirmationNotice(failed) {
+  document.querySelector("#view").innerHTML =
+    `<section class="studio"><h2>${failed ? "Confirmation link unavailable" : "Check your email confirmations"}</h2><p>${failed ? "This email confirmation link is invalid, expired, or already used. Check your current login email in Account & login before requesting a fresh change." : "A confirmation step was accepted. Check your current login email in Account & login. If the change is still pending, use the latest confirmation email and follow your Supabase email settings."}</p><p class="muted">Keep your existing owner session until the new login is confirmed. The Supabase Site URL and allowed redirects must point to this store.</p><a class="auth-link" href="#/owner">Return to owner studio</a></section>`;
+  history.replaceState(
+    null,
+    "",
+    authRedirect(import.meta.env.BASE_URL, location.origin) + "#/auth-status",
+  );
+}
+
+let routeGeneration = 0;
 async function route() {
+  const generation = ++routeGeneration;
   const dialog = document.querySelector("#modal");
   if (dialog.open) dialog.close();
   dialog.replaceChildren();
   clearInterval(window.ownerPoll);
+  if (location.hash === "#/forgot-password") {
+    await forgotPassword();
+    return;
+  }
+  if (
+    state.passwordRecovery ||
+    location.hash === "#/reset-password" ||
+    (recoveryReturn && !state.recoveryReturnHandled)
+  ) {
+    state.recoveryReturnHandled = true;
+    await resetPassword();
+    return;
+  }
+  const callback = new URLSearchParams(location.hash.slice(1));
+  if (
+    callback.has("error") ||
+    callback.has("error_code") ||
+    callback.has("message")
+  ) {
+    confirmationNotice(callback.has("error") || callback.has("error_code"));
+    return;
+  }
+  if (!state.storeLoaded) await load();
+  if (generation !== routeGeneration) return;
   if (location.hash.startsWith("#/owner")) await owner();
   else if (location.hash.startsWith("#/track")) {
     await trackingRoute();
@@ -831,7 +1036,7 @@ async function route() {
 }
 shell();
 try {
-  await load();
+  if (db) await db.auth.getSession();
   await route();
 } catch (err) {
   document.querySelector("#view").innerHTML =

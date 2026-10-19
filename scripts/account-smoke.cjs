@@ -105,6 +105,7 @@ const assert = require("node:assert/strict");
       .getByLabel("New login email", { exact: true })
       .fill("store-owner@example.com");
     await page
+      .locator("#change-login-email")
       .getByLabel("Current password", { exact: true })
       .fill("wrong-password");
     await page
@@ -115,13 +116,14 @@ const assert = require("node:assert/strict");
       .waitFor();
     assert.equal(updates.length, 0);
     await page
+      .locator("#change-login-email")
       .getByLabel("Current password", { exact: true })
       .fill("test-password");
     await page
       .getByRole("button", { name: "Request email change", exact: true })
       .click();
     await page
-      .getByText("Email change requested. Check the old and new inboxes", {
+      .getByText("Email change requested. Check your new inbox", {
         exact: false,
       })
       .waitFor();
@@ -131,7 +133,10 @@ const assert = require("node:assert/strict");
     assert.equal("password" in updates[0].body, false);
     assert.equal(updates[0].redirect, base + "/");
     assert.equal(
-      await page.getByLabel("Current password", { exact: true }).inputValue(),
+      await page
+        .locator("#change-login-email")
+        .getByLabel("Current password", { exact: true })
+        .inputValue(),
       "",
     );
     assert.equal(user.id, ownerId);
@@ -140,6 +145,49 @@ const assert = require("node:assert/strict");
         .getByRole("button", { name: "Email change requested", exact: true })
         .isDisabled(),
       true,
+    );
+    const change = page.locator("#change-password");
+    await change
+      .getByLabel("Current password", { exact: true })
+      .fill("wrong-password");
+    await change
+      .getByLabel("New password", { exact: true })
+      .fill("updated-password");
+    await change
+      .getByLabel("Confirm new password", { exact: true })
+      .fill("updated-password");
+    await change
+      .getByRole("button", { name: "Change password", exact: true })
+      .click();
+    await change
+      .getByText("Invalid login credentials", { exact: true })
+      .waitFor();
+    assert.equal(updates.length, 1);
+    await change
+      .getByLabel("Current password", { exact: true })
+      .fill("test-password");
+    await change
+      .getByLabel("Confirm new password", { exact: true })
+      .fill("mismatched-password");
+    await change
+      .getByRole("button", { name: "Change password", exact: true })
+      .click();
+    await change
+      .getByText("The new passwords do not match.", { exact: true })
+      .waitFor();
+    assert.equal(updates.length, 1);
+    await change
+      .getByLabel("Confirm new password", { exact: true })
+      .fill("updated-password");
+    await change
+      .getByRole("button", { name: "Change password", exact: true })
+      .click();
+    await change.getByText("Password changed.", { exact: false }).waitFor();
+    assert.equal(updates.length, 2);
+    assert.equal(updates[1].body.password, "updated-password");
+    assert.equal(
+      await change.getByLabel("New password", { exact: true }).inputValue(),
+      "",
     );
     allowed = false;
     await page.reload();
@@ -154,7 +202,7 @@ const assert = require("node:assert/strict");
     );
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: owner login, current-email display, password verification, existing-user email update, redirect, cleared password, confirmation guidance and non-owner access gate.",
+      "PASS: owner login, current-email display, password verification, existing-user email update, redirect, cleared password, confirmation guidance, password change checks and non-owner access gate.",
     );
   } finally {
     await browser.close();

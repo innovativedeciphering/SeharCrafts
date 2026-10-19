@@ -971,3 +971,12 @@ nav {
     margin-left: 3px;
   }
 }
+.auth-link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.account-password {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid #d8ddce;
+}

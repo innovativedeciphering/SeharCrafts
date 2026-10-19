@@ -127,3 +127,5 @@ Customers can cancel orders in `placed` or `confirmed` status using their privat
 Tracking/cancellation database checks run as part of `npm run test:db`. The mocked payment browser suite also checks tracking navigation, email errors, cancellation, refund messaging, post-dispatch restrictions and mobile layout.
 
 To change the owner's existing login email while preserving the user UUID and owner permissions, use **Owner studio → Account & login**. See [owner login email](docs/owner-login-email.md) for confirmation and redirect setup. Alert recipients and Gmail sending authorization are configured separately.
+
+Owner password recovery is available at `#/forgot-password`, with **Change password** under **Account & login**. Configure the exact Supabase recovery redirect from [owner account instructions](docs/owner-login-email.md) before using it. These Auth emails use Supabase Auth's mail configuration, independently of the order-alert worker.
