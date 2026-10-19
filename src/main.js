@@ -334,7 +334,7 @@ async function owner() {
     .from("products")
     .select("*")
     .order("created_at", { ascending: false });
-  view.innerHTML = `<section class="studio wide"><div class="section-heading"><div><p class="eyebrow">OWNER STUDIO</p><h2>Good things start here.</h2></div><button id="logout">Sign out</button></div><div class="owner-tabs"><button data-tab="orders">Orders (${orders.filter((o) => o.status === "placed").length} new)</button><button data-tab="products">Products</button><button data-tab="settings">Payment & delivery</button><button data-tab="reviews">Testimonials</button><button id="notifications">Enable browser alerts</button></div><p class="muted">Orders refresh every 30 seconds while this dashboard is open. Email alerts require the notification service described in README.</p><div id="panel"></div></section>`;
+  view.innerHTML = `<section class="studio wide"><div class="section-heading"><div><p class="eyebrow">OWNER STUDIO</p><h2>Good things start here.</h2></div><button id="logout">Sign out</button></div><div class="owner-tabs"><button data-tab="orders">Orders (${orders.filter((o) => o.status === "placed").length} new)</button><button data-tab="products">Products</button><button data-tab="settings">Payment & delivery</button><button data-tab="reviews">Testimonials</button><button data-tab="account">Account & login</button><button id="notifications">Enable browser alerts</button></div><p class="muted">Orders refresh every 30 seconds while this dashboard is open. Email alerts require the notification service described in README.</p><div id="panel"></div></section>`;
   view.querySelector("#logout").onclick = async () => {
     clearInterval(window.ownerPoll);
     await db.auth.signOut();
@@ -378,8 +378,65 @@ async function owner() {
     state.orders = data;
   }, 30000);
 }
+async function renderAccount(panel) {
+  panel.innerHTML = `<h3>Account & login</h3><p>This changes the email for your existing owner account. Your products, orders and owner permissions stay with the same account.</p><p id="current-login-email">Loading current login…</p><form id="change-login-email"><label>New login email<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>Current password<input name="password" type="password" required autocomplete="current-password"></label><p class="muted">Confirm the messages Supabase sends to the old and new addresses, as required by your project settings. Your password stays the same. Keep your current session open until you can sign in with the new address.</p><button class="primary" disabled>Request email change</button><p id="account-message" role="status"></p></form><p class="muted">The notification receiving email is separate. Update it in Payment & delivery after confirming the new login email.</p>`;
+  const form = panel.querySelector("#change-login-email");
+  const message = form.querySelector("#account-message");
+  const button = form.querySelector("button");
+  try {
+    const {
+      data: { user },
+      error,
+    } = await db.auth.getUser();
+    if (error || !user) throw error || new Error("Please sign in again.");
+    if (!panel.contains(form)) return;
+    panel.querySelector("#current-login-email").textContent =
+      `Current login: ${user.email}${user.new_email ? " · Pending change: " + user.new_email : ""}`;
+    button.disabled = false;
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      const email = form.elements.email.value.trim();
+      if (email.toLowerCase() === user.email.toLowerCase()) {
+        message.textContent = "Enter a different email address.";
+        return;
+      }
+      button.disabled = true;
+      message.textContent = "Checking your current password…";
+      try {
+        const { data: reauth, error: passwordError } =
+          await db.auth.signInWithPassword({
+            email: user.email,
+            password: form.elements.password.value,
+          });
+        form.elements.password.value = "";
+        if (passwordError) throw passwordError;
+        if (reauth.user?.id !== user.id)
+          throw new Error("Account verification failed. Please sign in again.");
+        const redirect = new URL(import.meta.env.BASE_URL, location.origin)
+          .href;
+        const { error: updateError } = await db.auth.updateUser(
+          { email },
+          { emailRedirectTo: redirect },
+        );
+        if (updateError) throw updateError;
+        message.textContent =
+          "Email change requested. Check the old and new inboxes for confirmation messages. After completing confirmation, test the new email with your existing password in a private browser window.";
+        button.textContent = "Email change requested";
+      } catch (err) {
+        message.textContent = err.message;
+        button.disabled = false;
+      }
+    };
+  } catch (err) {
+    message.textContent = err.message;
+  }
+}
 function renderPanel(tab, products) {
   const panel = document.querySelector("#panel");
+  if (tab === "account") {
+    renderAccount(panel);
+    return;
+  }
   if (tab === "orders") {
     panel.innerHTML = `<h3>Latest 100 orders</h3><button id="refresh">Refresh orders</button>${state.orders.map((o) => `<article class="order"><div class="section-heading"><h3>${e(o.order_number)}</h3><span>${e(o.status)} · ${e(o.payment_status)}</span></div><p>${e(o.customer.name)} · ${e(o.customer.email)} · ${e(o.customer.phone)}</p><p>${e(o.customer.address)}</p><p>${e(o.customer.note)}</p><p>Preferred payment: ${e(paymentLabels[o.payment_method] || o.payment_method)}</p><a href="${e(trackingUrl(o.payment_token))}" target="_blank" rel="noopener">Open order tracking & cancellation ↗</a><p>${e(o.cancellation_reason || "")}</p><a href="${e(paymentPageUrl(o.payment_token, location.href))}" target="_blank" rel="noopener">Open order payment page & QR ↗</a><ul>${o.items.map((i) => `<li>${e(i.name)} × ${i.quantity} · ${money(i.unit_price)}</li>`).join("")}</ul><strong>Product subtotal: ${money(o.total)}</strong><p class="muted">Delivery charges must be confirmed separately before requesting payment.</p><label>Order status<select data-status="${o.id}">${["placed", "confirmed", "dispatched", "delivered", "cancelled"].map((s) => `<option ${o.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label><label>Payment<select data-payment="${o.id}">${["pending", "received", "refunded"].map((s) => `<option ${o.payment_status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label></article>`).join("") || "<p>No orders yet.</p>"}`;
     panel.querySelector("#refresh").onclick = owner;
