@@ -40,6 +40,11 @@ Deno.serve(async (request) => {
     .order("created_at")
     .limit(30);
   if (error) return new Response("Queue unavailable", { status: 500 });
+  // Resend's test sender only permits the account's own recipient address.
+  // Keep customer deliveries off in test mode, without failing every owner alert.
+  const ownerOnly =
+    /@resend\.dev(?:>|$)/i.test(from.trim()) ||
+    Deno.env.get("NOTIFICATION_MODE") === "owner_only";
   let sent = 0,
     failed = 0;
   for (const event of events ?? []) {
@@ -54,10 +59,13 @@ Deno.serve(async (request) => {
     const html = `<h2>${escapeHtml(subject)}</h2><p>Hello ${escapeHtml(order.customer.name)},</p><p>Order status: ${escapeHtml(order.status)}. Payment status: ${escapeHtml(order.payment_status)}.</p><ul>${order.items.map((i: { name: string; quantity: number; unit_price: number }) => `<li>${escapeHtml(i.name)} × ${i.quantity} — PKR ${i.unit_price}</li>`).join("")}</ul><p>Product subtotal: PKR ${order.total}. Delivery is confirmed separately.</p><p>Preferred payment: ${escapeHtml(order.payment_method)}.</p><p><a href="${escapeHtml(paymentUrl.href)}">Track your order, manage cancellation and view payment options</a>. Keep this link private. Wait for owner confirmation of delivery charges and the final amount before transferring.</p><p>Reply to this email for help. Keep your order number for reference. Never share passwords or payment PINs.</p>`;
     try {
       // Separate requests keep the owner's email private. Stable provider idempotency keys protect retries.
-      for (const [role, to] of [
-        ["owner", owner],
-        ["customer", order.customer.email],
-      ]) {
+      const recipients = ownerOnly
+        ? [["owner", owner]]
+        : [
+            ["owner", owner],
+            ["customer", order.customer.email],
+          ];
+      for (const [role, to] of recipients) {
         const response = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
@@ -97,5 +105,12 @@ Deno.serve(async (request) => {
         .eq("id", event.id);
     }
   }
-  return Response.json({ sent, failed }, { status: failed ? 502 : 200 });
+  return Response.json(
+    {
+      sent,
+      failed,
+      notification_mode: ownerOnly ? "owner_only" : "owner_and_customer",
+    },
+    { status: failed ? 502 : 200 },
+  );
 });

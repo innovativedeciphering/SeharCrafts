@@ -1,6 +1,6 @@
 # Sehar Crafts
 
-Custom storefront domain: `https://seharcrafts.infy.click/` (activation requires GitHub Pages and DNS settings). See [custom domain and Resend setup](docs/custom-domain.md).
+Storefront: `https://innovativedeciphering.github.io/SeharCrafts/`. Owner studio: `https://innovativedeciphering.github.io/SeharCrafts/#/owner`. See [Gmail owner notifications](docs/owner-notifications.md).
 
 A responsive handmade decor storefront and separate owner studio, designed for GitHub Pages with Supabase for authentication, products, photos, and orders.
 
@@ -64,7 +64,7 @@ Recommended starting option: **email**, using Supabase Edge Functions and Resend
 5. Place an order, check `notification_events`, run the scheduled request, and verify both owner and customer inboxes. Change order and payment statuses and verify the follow-up emails. Emails acknowledge recorded status; they do not automatically verify a bank payment.
 6. Monitor failed jobs and `last_error`. Events stop automatic retry after 10 attempts. Correct configuration before resetting attempts in SQL. Provider idempotency keys reduce duplicate emails on short retries; Resend's idempotency window is limited, so delayed retries may duplicate messages. Queue rows are marked sent only after both sends succeed. Overlapping runs use the same idempotency keys, but a production system should add queue leasing before higher traffic.
 
-No email is sent until you connect the provider and scheduler. If the email service is down, the order remains saved and the owner can see it in the studio. Avoid collecting more customer information than necessary, restrict owner access, and set a retention policy.
+When using the Resend test sender (`onboarding@resend.dev`), the worker sends only to the saved owner email, which must match the Resend account email. Customer sends require a verified sending domain. `NOTIFICATION_MODE=owner_only` can also retain owner-only alerts after domain verification. No email is sent until you deploy the updated worker and connect the provider and scheduler. If the email service is down, the order remains saved and the owner can see it in the studio. Avoid collecting more customer information than necessary, restrict owner access, and set a retention policy.
 
 ## Publish on GitHub Pages
 
@@ -78,7 +78,7 @@ The included `.github/workflows/pages.yml` builds and deploys pushes to `main`.
    - Public: `https://innovativedeciphering.github.io/SeharCrafts/`
    - Owner: `https://innovativedeciphering.github.io/SeharCrafts/#/owner`
 
-The owner URL is a separate route, not a security secret; Supabase authentication and row-level security protect owner actions. GitHub Pages hosts the public files only. There is no customer database or secret storage inside GitHub Pages. The workflow reads the Pages base path with `actions/configure-pages`: it builds for `/SeharCrafts/` on the default GitHub URL and `/` when the custom domain is configured. `public/CNAME` contains the intended custom hostname, but GitHub Pages settings and DNS must also be updated.
+The owner URL is a separate route, not a security secret; Supabase authentication and row-level security protect owner actions. GitHub Pages hosts the public files only. There is no customer database or secret storage inside GitHub Pages. The workflow builds for the GitHub Pages project path `/SeharCrafts/`. No custom domain or CNAME file is configured.
 
 ## Suggested launch roadmap
 
@@ -104,7 +104,7 @@ Customers choose an enabled payment method at checkout. The server validates ava
 
 For **new** databases, run the updated `supabase/schema.sql` once. If you already ran the previous schema, run **only** `supabase/payment-upgrade.sql` once instead, and redeploy the notification worker. Do not rerun the base schema on an existing database. Existing orders are marked as having no recorded payment preference. Their new payment tokens allow the owner to share payment pages.
 
-The email worker keeps the existing GitHub Pages address as its fallback until custom-domain verification is complete. Set `STORE_URL=https://seharcrafts.infy.click/` only after the new address works. If hosting elsewhere, set its non-secret `STORE_URL` to the full storefront URL including the path, such as `https://example.com/SeharCrafts/`, then test the email link.
+The email worker defaults to `https://innovativedeciphering.github.io/SeharCrafts/`. Keep `STORE_URL` set to that GitHub address. If hosting elsewhere, set its non-secret `STORE_URL` to the full storefront URL including the path, such as `https://example.com/SeharCrafts/`, then test the email link.
 
 QR unit tests decode the generated PNG to verify the exact order URL. A mocked-backend browser test additionally exercises payment selection, order confirmation, QR download, private-token routing and suppression of further payment requests after receipt. To run it separately from the normal demo dev server:
 
