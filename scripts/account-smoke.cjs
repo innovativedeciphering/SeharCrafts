@@ -32,6 +32,9 @@ const assert = require("node:assert/strict");
         exp: Math.floor(Date.now() / 1000) + 3600,
       }) +
       ".test-signature";
+    let products = [{ id: "22222222-2222-4222-8222-222222222222", name: "Test vase", category: "Decor", description: "Test", price: 100, images: ["https://example.com/vase.png"], active: true }];
+    const productMutations = [];
+    let rejectDeletion = false;
     let updates = [],
       allowed = true;
     await page.route("https://sehar-test.supabase.co/**", async (route) => {
@@ -77,8 +80,22 @@ const assert = require("node:assert/strict");
           delivery_note: "Test delivery policy",
         };
       else if (url.pathname.endsWith("/rpc/delivered_count")) data = 0;
+      else if (url.pathname.endsWith("/products")) {
+        if (["PATCH", "DELETE"].includes(request.method())) {
+          assert.equal(url.searchParams.get("id"), "eq.22222222-2222-4222-8222-222222222222");
+          assert.equal(request.headers().authorization, "Bearer " + jwt);
+          if (rejectDeletion && request.method() === "DELETE") {
+            await route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ message: "Permission denied" }) });
+            return;
+          }
+          productMutations.push(request.method());
+          data = { id: products[0].id };
+          if (request.method() === "PATCH") products[0].active = request.postDataJSON().active;
+          else products = [];
+        } else data = url.searchParams.has("active") ? products.filter((p) => p.active) : products;
+      }
       else if (
-        ["/orders", "/products", "/testimonials"].some((path) =>
+        ["/orders", "/testimonials"].some((path) =>
           url.pathname.endsWith(path),
         )
       )
@@ -95,6 +112,33 @@ const assert = require("node:assert/strict");
     await page.locator("#login [name=email]").fill(user.email);
     await page.locator("#login [name=password]").fill("test-password");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("button", { name: "Products", exact: true }).click();
+    assert.equal(await page.locator(".product-management").isVisible(), false);
+    await page.locator("[data-edit]").first().click();
+    await page.getByRole("button", { name: "Deactivate product", exact: true }).click();
+    await page.locator(".owner-product-status").getByText("Hidden", { exact: true }).waitFor();
+    assert.equal(products[0].active, false);
+    await page.locator("[data-edit]").first().click();
+    await page.getByRole("button", { name: "Reactivate product", exact: true }).click();
+    await page.getByText("Product reactivated and visible in the store.", { exact: true }).waitFor();
+    assert.equal(products[0].active, true);
+    await page.locator("[data-edit]").first().click();
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await page.getByRole("button", { name: "Delete product", exact: true }).click();
+    assert.equal(productMutations.length, 2);
+    rejectDeletion = true;
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "Delete product", exact: true }).click();
+    await page.getByText("Could not update the product. Permission denied", { exact: true }).waitFor();
+    assert.equal(products.length, 1);
+    assert.equal(await page.getByRole("button", { name: "Delete product", exact: true }).isEnabled(), true);
+    rejectDeletion = false;
+    page.once("dialog", (dialog) => { assert.match(dialog.message(), /Test vase/); return dialog.accept(); });
+    await page.getByRole("button", { name: "Delete product", exact: true }).click();
+    await page.getByText("Your products will appear here after you add them.", { exact: true }).waitFor();
+    assert.deepEqual(productMutations, ["PATCH", "PATCH", "DELETE"]);
+    assert.equal(products.length, 0);
+    assert.equal(await page.locator(".product-management").isVisible(), false);
     await page
       .getByRole("button", { name: "Account & login", exact: true })
       .click();
@@ -202,7 +246,7 @@ const assert = require("node:assert/strict");
     );
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: owner login, current-email display, password verification, existing-user email update, redirect, cleared password, confirmation guidance, password change checks and non-owner access gate.",
+      "PASS: owner product deactivation/reactivation, cancelled and confirmed deletion, permission failure recovery; owner login, current-email display, password verification, existing-user email update, redirect, cleared password, confirmation guidance, password change checks and non-owner access gate.",
     );
   } finally {
     await browser.close();

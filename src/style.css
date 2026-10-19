@@ -1081,3 +1081,6 @@ header { gap: 24px; }
   #header-social-links .social-icon { width: 34px; height: 34px; }
   #header-social-links { gap: 6px; }
 }
+.product-management { margin-top: 24px; padding-top: 18px; border-top: 1px solid #d8ddce; }
+.product-management button { margin: 0 8px 8px 0; }
+.product-management p { max-width: 600px; margin-bottom: 0; }
