@@ -22,6 +22,20 @@ const assert = require("node:assert/strict");
       .locator(".hero-photo img")
       .evaluate((img) => img.naturalWidth > 0),
   );
+  const collectionSearch = page.getByRole("searchbox", { name: "Search the collection", exact: true });
+  await collectionSearch.fill("woven");
+  assert.equal(await page.locator(".product:visible").count(), 1);
+  await collectionSearch.fill("no matching handmade item");
+  assert.equal(await page.locator(".product:visible").count(), 0);
+  await page.locator("#shop-no-results").waitFor();
+  await collectionSearch.fill("woven");
+  await page.getByRole("button", { name: "Decor", exact: true }).click();
+  assert.equal(await page.locator(".product:visible").count(), 0);
+  assert.equal(await collectionSearch.inputValue(), "woven");
+  await page.getByRole("button", { name: "All", exact: true }).click();
+  assert.equal(await page.locator(".product:visible").count(), 1);
+  await collectionSearch.fill("");
+  assert.equal(await page.locator(".product:visible").count(), 4);
   await page.getByRole("button", { name: "Baskets", exact: true }).click();
   assert.equal(await page.locator(".product").count(), 1);
   await page.getByRole("button", { name: "All", exact: true }).click();
@@ -65,7 +79,9 @@ const assert = require("node:assert/strict");
       "Connect Supabase to enable secure owner login, photo uploads, product editing, order management, and payment settings.",
     )
     .waitFor();
+  assert.equal(await page.locator("#cart").isVisible(), false);
   await page.goto(process.env.BASE_URL || "http://127.0.0.1:5173");
+  await page.locator("#cart").waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(
     await page.evaluate(

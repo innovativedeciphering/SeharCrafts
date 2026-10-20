@@ -1114,3 +1114,9 @@ header { gap: 24px; }
   .order-details { padding: 18px 14px; overflow-wrap: anywhere; }
 }
 @media (prefers-reduced-motion: reduce) { .order-details { animation: none; } }
+
+.shop-search-label { max-width: 460px; margin: 4px 0 20px; }
+#shop-search { padding: 13px 15px; border-radius: 6px; }
+#shop-no-results { padding: 30px 0; }
+#shop-results { margin: 20px 0 0; }
+@media (max-width: 600px) { .shop-search-label { max-width: none; } }

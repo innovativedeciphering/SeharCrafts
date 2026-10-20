@@ -26,6 +26,7 @@ const state = {
   products: configured ? [] : demoProducts,
   cart: [],
   filter: "All",
+  shopSearch: "",
   settings: {
     store_name: "Sehar Crafts",
     currency: "PKR",
@@ -150,16 +151,32 @@ function renderSocials() {
 }
 function storefront() {
   const view = document.querySelector("#view");
-  view.innerHTML = `${!configured ? '<div class="demo-note">Preview collection · example products with AI-generated collection imagery. Checkout opens after the store is connected.</div>' : ""}<section class="hero"><div class="hero-copy"><p class="eyebrow">THE BEAUTY OF SOMETHING HANDMADE</p><h1>Little things.<br>Lasting <em>joy.</em></h1><p>Bring warmth to your home and meaning to your gifts. Discover pieces made with care, for moments that matter.</p><a class="primary" href="#collection">Explore the collection <span>↗</span></a><div class="hero-note"><span>✧</span> Made with care. Chosen with love.</div></div><div class="hero-photo">${img(sampleImage, "Illustrative handmade basket, ceramics, candle and wrapped gift")}<span class="photo-label">A little warmth, wherever you call home.</span><div class="round-seal">HANDMADE<br>with love<br>✧</div></div></section><div class="values"><span>✧ Thoughtfully handcrafted</span><span>♧ Small-batch treasures</span><span>♡ Gifts with a personal touch</span></div><section id="collection" class="collection"><div class="section-heading"><div><p class="eyebrow">FIND YOUR LITTLE JOY</p><h2>Made for your everyday.</h2></div><p>Pieces to love. Stories to keep.</p></div><div class="filters">${["All", ...new Set(state.products.map((p) => p.category))].map((c) => `<button data-filter="${e(c)}" class="${state.filter === c ? "selected" : ""}">${e(c)}</button>`).join("")}</div><div class="grid">${
+  view.innerHTML = `${!configured ? '<div class="demo-note">Preview collection · example products with AI-generated collection imagery. Checkout opens after the store is connected.</div>' : ""}<section class="hero"><div class="hero-copy"><p class="eyebrow">THE BEAUTY OF SOMETHING HANDMADE</p><h1>Little things.<br>Lasting <em>joy.</em></h1><p>Bring warmth to your home and meaning to your gifts. Discover pieces made with care, for moments that matter.</p><a class="primary" href="#collection">Explore the collection <span>↗</span></a><div class="hero-note"><span>✧</span> Made with care. Chosen with love.</div></div><div class="hero-photo">${img(sampleImage, "Illustrative handmade basket, ceramics, candle and wrapped gift")}<span class="photo-label">A little warmth, wherever you call home.</span><div class="round-seal">HANDMADE<br>with love<br>✧</div></div></section><div class="values"><span>✧ Thoughtfully handcrafted</span><span>♧ Small-batch treasures</span><span>♡ Gifts with a personal touch</span></div><section id="collection" class="collection"><div class="section-heading"><div><p class="eyebrow">FIND YOUR LITTLE JOY</p><h2>Made for your everyday.</h2></div><p>Pieces to love. Stories to keep.</p></div><label class="shop-search-label">Search the collection<input id="shop-search" type="search" value="${e(state.shopSearch)}" placeholder="Search by product name or article code" autocomplete="off"></label><div class="filters">${["All", ...new Set(state.products.map((p) => p.category))].map((c) => `<button data-filter="${e(c)}" class="${state.filter === c ? "selected" : ""}">${e(c)}</button>`).join("")}</div><div class="grid">${
     state.products
       .filter((p) => state.filter === "All" || p.category === state.filter)
       .map(
         (p) =>
-          `<article class="product"><div class="product-photo" tabindex="0" role="button" aria-label="View ${e(p.name)}" data-open="${e(p.id)}">${p.sale_price != null ? '<span class="badge">A little treat · sale</span>' : ""}${img(p.images[0], p.name)}<button class="quick" data-open="${e(p.id)}">Take a closer look ↗</button>${p.images.length > 1 ? `<button class="card-prev" data-slide="${e(p.id)}:-1" aria-label="Previous product photo">‹</button><button class="card-next" data-slide="${e(p.id)}:1" aria-label="Next product photo">›</button>` : ""}</div><div class="product-meta"><span>${e(p.category)}</span><h3><button data-open="${e(p.id)}">${e(p.name)}</button></h3><p>${money(priceOf(p))} ${p.sale_price != null ? `<del>${money(p.price)}</del>` : ""}</p></div></article>`,
+          `<article class="product" data-product-id="${e(p.id)}"><div class="product-photo" tabindex="0" role="button" aria-label="View ${e(p.name)}" data-open="${e(p.id)}">${p.sale_price != null ? '<span class="badge">A little treat · sale</span>' : ""}${img(p.images[0], p.name)}<button class="quick" data-open="${e(p.id)}">Take a closer look ↗</button>${p.images.length > 1 ? `<button class="card-prev" data-slide="${e(p.id)}:-1" aria-label="Previous product photo">‹</button><button class="card-next" data-slide="${e(p.id)}:1" aria-label="Next product photo">›</button>` : ""}</div><div class="product-meta"><span>${e(p.category)}</span><h3><button data-open="${e(p.id)}">${e(p.name)}</button></h3><p>${money(priceOf(p))} ${p.sale_price != null ? `<del>${money(p.price)}</del>` : ""}</p></div></article>`,
       )
       .join("") ||
     "<p>The collection is coming soon. Check back for handmade treasures.</p>"
-  }</div></section><section class="story" id="story"><p class="eyebrow">FROM OUR HANDS TO YOUR HOME</p><h2>Crafted slowly.<br><em>Loved for a long time.</em></h2><p>Sehar Crafts is a home for handmade decorations and thoughtful gifts. We believe the smallest details can make a space—and a day—feel special.</p><div class="stat"><strong>${state.delivered}</strong><span>orders delivered${configured ? "" : " · store not launched yet"}</span></div></section><section class="testimonials"><p class="eyebrow">LITTLE NOTES OF LOVE</p><h2>From our customers</h2><div class="quotes">${state.testimonials.length ? state.testimonials.map((t) => `<blockquote>“${e(t.quote)}”<cite>${e(t.name)}</cite></blockquote>`).join("") : "<p>Our story is just beginning. Customer reviews will appear here after the first deliveries.</p>"}</div></section>`;
+  }</div><p id="shop-no-results" hidden>No products match your search in this category. Try another name, article code or category.</p><p id="shop-results" class="muted" role="status"></p></section><section class="story" id="story"><p class="eyebrow">FROM OUR HANDS TO YOUR HOME</p><h2>Crafted slowly.<br><em>Loved for a long time.</em></h2><p>Sehar Crafts is a home for handmade decorations and thoughtful gifts. We believe the smallest details can make a space—and a day—feel special.</p><div class="stat"><strong>${state.delivered}</strong><span>orders delivered${configured ? "" : " · store not launched yet"}</span></div></section><section class="testimonials"><p class="eyebrow">LITTLE NOTES OF LOVE</p><h2>From our customers</h2><div class="quotes">${state.testimonials.length ? state.testimonials.map((t) => `<blockquote>“${e(t.quote)}”<cite>${e(t.name)}</cite></blockquote>`).join("") : "<p>Our story is just beginning. Customer reviews will appear here after the first deliveries.</p>"}</div></section>`;
+  const search = view.querySelector("#shop-search");
+  const filterCollection = () => {
+    state.shopSearch = search.value;
+    const query = state.shopSearch.trim().toLowerCase();
+    const cards = [...view.querySelectorAll(".product")];
+    let shown = 0;
+    for (const card of cards) {
+      const product = state.products.find((item) => item.id === card.dataset.productId);
+      card.hidden = !`${product.name} ${product.article || ""}`.toLowerCase().includes(query);
+      if (!card.hidden) shown++;
+    }
+    view.querySelector("#shop-no-results").hidden = shown > 0 || cards.length === 0;
+    view.querySelector("#shop-results").textContent = `${shown} ${shown === 1 ? "product" : "products"}${state.filter === "All" ? "" : " in " + state.filter}${query ? " matching your search" : ""}`;
+  };
+  search.oninput = filterCollection;
+  filterCollection();
   view.querySelectorAll("[data-filter]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -1168,6 +1185,7 @@ function confirmationNotice(failed) {
 let routeGeneration = 0;
 async function route() {
   const generation = ++routeGeneration;
+  document.querySelector("#cart").hidden = location.hash.startsWith("#/owner");
   const dialog = document.querySelector("#modal");
   if (dialog.open) dialog.close();
   dialog.replaceChildren();

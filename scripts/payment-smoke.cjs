@@ -69,6 +69,7 @@ const assert = require("node:assert/strict");
           {
             id: "22222222-2222-4222-8222-222222222222",
             name: "Test vase",
+            article: "SC-VASE-007",
             category: "Decor",
             description: "A handmade vase",
             price: 100,
@@ -87,6 +88,11 @@ const assert = require("node:assert/strict");
       });
     });
     await page.goto(process.env.PAYMENT_TEST_URL || "http://127.0.0.1:5175");
+    await page.getByRole("searchbox", { name: "Search the collection", exact: true }).fill("sc-vase-007");
+    assert.equal(await page.locator(".product:visible").count(), 1);
+    await page.getByRole("searchbox", { name: "Search the collection", exact: true }).fill("unknown-code");
+    assert.equal(await page.locator(".product:visible").count(), 0);
+    await page.getByRole("searchbox", { name: "Search the collection", exact: true }).fill("");
     assert.equal(await page.locator(".social-icon").count(), 6);
     assert.equal(await page.locator("header").getByRole("link", { name: "Sehar Crafts on Instagram" }).getAttribute("href"), settings.instagram_url);
     for (const width of [390, 768, 1440]) {
