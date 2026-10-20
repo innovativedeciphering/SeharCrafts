@@ -33,6 +33,10 @@ const assert = require("node:assert/strict");
       }) +
       ".test-signature";
     let products = [{ id: "22222222-2222-4222-8222-222222222222", name: "Test vase", category: "Decor", description: "Test", price: 100, images: ["https://example.com/vase.png"], active: true }];
+    products[0].article = "SC-VASE-001";
+    const order = { id: "33333333-3333-4333-8333-333333333333", order_number: "SC-TEST-000001", customer: { name: "Ayesha", email: "customer@example.com", phone: "12345678", address: "Test delivery address" }, items: [{ name: "Test vase", quantity: 1, unit_price: 100 }], total: 100, status: "placed", payment_status: "pending", payment_method: "cod", payment_token: "55555555-5555-4555-8555-555555555555" };
+    const orderWrites = [];
+    let rejectOrderSave = false;
     const productMutations = [];
     let rejectDeletion = false;
     let updates = [],
@@ -90,12 +94,26 @@ const assert = require("node:assert/strict");
           }
           productMutations.push(request.method());
           data = { id: products[0].id };
-          if (request.method() === "PATCH") products[0].active = request.postDataJSON().active;
+          if (request.method() === "PATCH") Object.assign(products[0], request.postDataJSON());
           else products = [];
         } else data = url.searchParams.has("active") ? products.filter((p) => p.active) : products;
       }
+      else if (url.pathname.endsWith("/orders")) {
+        if (request.method() === "PATCH") {
+          assert.equal(url.searchParams.get("id"), "eq." + order.id);
+          assert.equal(url.searchParams.get("status"), "eq." + order.status);
+          assert.equal(url.searchParams.get("payment_status"), "eq." + order.payment_status);
+          if (rejectOrderSave) {
+            await route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ message: "Order permission denied" }) });
+            return;
+          }
+          orderWrites.push(request.postDataJSON());
+          Object.assign(order, request.postDataJSON());
+          data = { id: order.id, status: order.status, payment_status: order.payment_status };
+        } else data = [order];
+      }
       else if (
-        ["/orders", "/testimonials"].some((path) =>
+        ["/testimonials"].some((path) =>
           url.pathname.endsWith(path),
         )
       )
@@ -112,8 +130,63 @@ const assert = require("node:assert/strict");
     await page.locator("#login [name=email]").fill(user.email);
     await page.locator("#login [name=password]").fill("test-password");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.locator(".order-row").waitFor();
+    assert.equal(await page.locator(".order-row").getAttribute("open"), null);
+    await page.locator(".order-row summary").hover();
+    assert.equal(await page.locator(".order-row").evaluate((row) => row.open), true);
+    await page.locator(".order-row summary").click();
+    const orderForm = page.locator(".order-update");
+    await orderForm.getByLabel("Order status", { exact: true }).selectOption("confirmed");
+    await orderForm.getByLabel("Payment status", { exact: true }).selectOption("received");
+    assert.equal(orderWrites.length, 0);
+    await page.getByLabel("Search orders", { exact: true }).fill("missing-order");
+    assert.equal(await page.locator(".order-row:visible").count(), 0);
+    await page.getByText("No orders match your search.", { exact: true }).waitFor();
+    await page.getByLabel("Search orders", { exact: true }).fill("ayesha");
+    assert.equal(await orderForm.getByLabel("Order status", { exact: true }).inputValue(), "confirmed");
+    await orderForm.getByRole("button", { name: "Discard changes", exact: true }).click();
+    assert.equal(orderWrites.length, 0);
+    assert.equal(await orderForm.getByRole("button", { name: "Save changes", exact: true }).isDisabled(), true);
+    await orderForm.getByLabel("Order status", { exact: true }).selectOption("confirmed");
+    await orderForm.getByLabel("Payment status", { exact: true }).selectOption("received");
+    rejectOrderSave = true;
+    await orderForm.getByRole("button", { name: "Save changes", exact: true }).click();
+    await page.getByText("Could not save changes. Order permission denied", { exact: true }).waitFor();
+    assert.equal(orderWrites.length, 0);
+    assert.equal(order.status, "placed");
+    rejectOrderSave = false;
+    await orderForm.getByRole("button", { name: "Save changes", exact: true }).click();
+    await page.getByText("Saved. Order notifications have been queued.", { exact: true }).waitFor();
+    assert.deepEqual(orderWrites, [{ status: "confirmed", payment_status: "received" }]);
+    assert.equal(await orderForm.getByRole("button", { name: "Save changes", exact: true }).isDisabled(), true);
+    await page.locator("#order-filter").selectOption("placed");
+    assert.equal(await page.locator(".order-row:visible").count(), 0);
+    await page.locator("#order-filter").selectOption("confirmed");
+    await page.locator("#payment-filter").selectOption("received");
+    assert.equal(await page.locator(".order-row:visible").count(), 1);
+    await page.getByLabel("Search orders", { exact: true }).fill("sc-test-000001");
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: "/tmp/sehar-owner-orders-mobile.png", fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.screenshot({ path: "/tmp/sehar-owner-orders-desktop.png", fullPage: true });
     await page.getByRole("button", { name: "Products", exact: true }).click();
+    await page.getByLabel("Search products", { exact: true }).fill("unlisted");
+    assert.equal(await page.locator("[data-edit]:visible").count(), 0);
+    await page.getByLabel("Search products", { exact: true }).fill("sc-vase-001");
+    assert.equal(await page.locator("[data-edit]:visible").count(), 1);
+    await page.getByLabel("Search products", { exact: true }).fill("vase");
+    assert.equal(await page.locator("[data-edit]:visible").count(), 1);
     assert.equal(await page.locator(".product-management").isVisible(), false);
+    await page.locator("[data-edit]").first().click();
+    assert.equal(await page.getByLabel("Article code (optional)", { exact: true }).inputValue(), "SC-VASE-001");
+    await page.getByLabel("Article code (optional)", { exact: true }).fill("SC-VASE-002");
+    await page.getByRole("button", { name: "Save product", exact: true }).click();
+    await page.getByText("Product saved.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Products", exact: true }).click();
+    await page.getByText("Article: SC-VASE-002", { exact: true }).waitFor();
+    assert.equal(products[0].article, "SC-VASE-002");
+    productMutations.length = 0;
     await page.locator("[data-edit]").first().click();
     await page.getByRole("button", { name: "Deactivate product", exact: true }).click();
     await page.locator(".owner-product-status").getByText("Hidden", { exact: true }).waitFor();
@@ -246,7 +319,7 @@ const assert = require("node:assert/strict");
     );
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: owner product deactivation/reactivation, cancelled and confirmed deletion, permission failure recovery; owner login, current-email display, password verification, existing-user email update, redirect, cleared password, confirmation guidance, password change checks and non-owner access gate.",
+      "PASS: searchable expandable order rows, draft-only dropdowns, explicit atomic saves, discard and failure handling; product name/article search and article persistence; owner product deactivation/reactivation, cancelled and confirmed deletion, permission failure recovery; owner login, current-email display, password verification, existing-user email update, redirect, cleared password, confirmation guidance, password change checks and non-owner access gate.",
     );
   } finally {
     await browser.close();

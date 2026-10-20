@@ -3,6 +3,11 @@ insert into auth.users values('11111111-1111-4111-8111-111111111111');
 insert into public.owners values('11111111-1111-4111-8111-111111111111');
 insert into public.products(id,name,category,price,sale_price,images) values('22222222-2222-4222-8222-222222222222','Test vase','Decor',100,80,array['https://example.com/vase.png']);
 insert into public.products(id,name,category,price,images,active) values('33333333-3333-4333-8333-333333333333','Hidden vase','Decor',100,array['https://example.com/vase.png'],false);
+update public.products set article='SC-VASE-001' where id='22222222-2222-4222-8222-222222222222';
+do $$begin
+ if (select article from public.products where id='22222222-2222-4222-8222-222222222222')<>'SC-VASE-001' then raise exception 'Article not stored';end if;
+ begin update public.products set article=repeat('x',81);raise exception 'Overlong article accepted';exception when check_violation then null;end;
+end;$$;
 update public.store_settings set cod_enabled=true;
 set role anon;
 do $$begin

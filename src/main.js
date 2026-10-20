@@ -535,6 +535,95 @@ async function renderAccount(panel) {
     message.textContent = err.message;
   }
 }
+function renderOrders(panel) {
+  const orders = state.orders.map((order) => ({ ...order }));
+  const statuses = ["placed", "confirmed", "dispatched", "delivered", "cancelled"];
+  const payments = ["pending", "received", "refunded"];
+  panel.innerHTML = `<div class="section-heading"><h3>Latest 100 orders</h3><button id="refresh">Refresh orders</button></div><div class="order-filters"><label>Search orders<input id="order-search" type="search" placeholder="Order number, customer, email, phone or product"></label><label>Order status<select id="order-filter"><option value="">All statuses</option>${statuses.map((status) => `<option>${status}</option>`).join("")}</select></label><label>Payment status<select id="payment-filter"><option value="">All payments</option>${payments.map((status) => `<option>${status}</option>`).join("")}</select></label></div><p class="muted">Hover to preview. Click a row to keep it open. Status changes are sent only when you save.</p><p id="order-results" class="muted" role="status"></p><div class="order-rows">${orders.map((o) => `<details class="order-row" data-order="${e(o.id)}"><summary><strong>${e(o.order_number)}</strong><span class="order-customer">${e(o.customer.name)}</span><span class="order-summary-status">${e(o.status)} · ${e(o.payment_status)}</span><strong>${money(o.total)}</strong><span aria-hidden="true" class="order-chevron">⌄</span></summary><div class="order-details"><p>${e(o.customer.email)} · ${e(o.customer.phone)}</p><p>${e(o.customer.address)}</p>${o.customer.note ? `<p>${e(o.customer.note)}</p>` : ""}<p>Preferred payment: ${e(paymentLabels[o.payment_method] || o.payment_method)}</p><div class="order-links"><a href="${e(trackingUrl(o.payment_token))}" target="_blank" rel="noopener">Order tracking & cancellation ↗</a><a href="${e(paymentPageUrl(o.payment_token, location.href))}" target="_blank" rel="noopener">Payment page & QR ↗</a></div>${o.cancellation_reason ? `<p>${e(o.cancellation_reason)}</p>` : ""}<ul>${o.items.map((item) => `<li>${e(item.name)} × ${item.quantity} · ${money(item.unit_price)}</li>`).join("")}</ul><strong>Product subtotal: ${money(o.total)}</strong><p class="muted">Delivery charges must be confirmed separately before requesting payment.</p><form class="order-update"><div class="form-row"><label>Order status<select name="status" aria-label="Order status">${statuses.map((status) => `<option ${o.status === status ? "selected" : ""}>${status}</option>`).join("")}</select></label><label>Payment status<select name="payment_status" aria-label="Payment status">${payments.map((status) => `<option ${o.payment_status === status ? "selected" : ""}>${status}</option>`).join("")}</select></label></div><div class="order-save"><button class="primary" disabled>Save changes</button><button type="button" class="order-reset" disabled>Discard changes</button></div><p class="order-message muted" role="status"></p></form></div></details>`).join("")}</div><p id="no-orders" hidden>No orders match your search.</p>`;
+  const rows = [...panel.querySelectorAll(".order-row")];
+  const filter = () => {
+    const query = panel.querySelector("#order-search").value.trim().toLowerCase();
+    const status = panel.querySelector("#order-filter").value;
+    const payment = panel.querySelector("#payment-filter").value;
+    let shown = 0;
+    rows.forEach((row, index) => {
+      const o = orders[index];
+      const text = [o.order_number, o.customer.name, o.customer.email, o.customer.phone, o.customer.address, ...o.items.map((item) => item.name)].join(" ").toLowerCase();
+      row.hidden = !(text.includes(query) && (!status || o.status === status) && (!payment || o.payment_status === payment));
+      if (!row.hidden) shown++;
+    });
+    panel.querySelector("#no-orders").hidden = shown > 0;
+    panel.querySelector("#order-results").textContent = `${shown} of ${orders.length} loaded orders`;
+  };
+  for (const id of ["order-search", "order-filter", "payment-filter"])
+    panel.querySelector(`#${id}`).oninput = filter;
+  filter();
+  panel.querySelector("#refresh").onclick = () => {
+    if (rows.some((row) => row.dataset.dirty === "true") && !window.confirm("Discard unsaved order changes and refresh?")) return;
+    owner().catch((error) => toast(error.message));
+  };
+  rows.forEach((row, index) => {
+    const order = orders[index];
+    const form = row.querySelector("form");
+    const save = form.querySelector(".primary");
+    const reset = form.querySelector(".order-reset");
+    const message = form.querySelector(".order-message");
+    const dirty = () => form.elements.status.value !== order.status || form.elements.payment_status.value !== order.payment_status;
+    const markDirty = () => {
+      row.dataset.dirty = String(dirty());
+      save.disabled = reset.disabled = !dirty();
+      message.textContent = dirty() ? "Unsaved changes — save to update this order and queue its alerts." : "";
+    };
+    row.querySelector("summary").onclick = (event) => {
+      event.preventDefault();
+      row.dataset.pinned = String(row.dataset.pinned !== "true");
+      row.open = row.dataset.pinned === "true" || dirty();
+    };
+    row.onpointerenter = (event) => {
+      if (event.pointerType === "mouse") row.open = true;
+    };
+    row.onpointerleave = () => {
+      if (row.dataset.pinned !== "true" && !dirty() && !row.contains(document.activeElement)) row.open = false;
+    };
+    form.onchange = markDirty;
+    reset.onclick = () => {
+      form.elements.status.value = order.status;
+      form.elements.payment_status.value = order.payment_status;
+      markDirty();
+    };
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      if (!dirty() || save.disabled) return;
+      const changes = {};
+      for (const field of ["status", "payment_status"])
+        if (form.elements[field].value !== order[field]) changes[field] = form.elements[field].value;
+      const controls = [...form.querySelectorAll("button, select")];
+      controls.forEach((control) => control.disabled = true);
+      message.textContent = "Saving…";
+      try {
+        const { data, error } = await db.from("orders").update(changes).eq("id", order.id).eq("status", order.status).eq("payment_status", order.payment_status).select("id,status,payment_status").single();
+        if (error) throw error;
+        if (!data) throw new Error("This order changed elsewhere. Refresh orders before saving again.");
+        Object.assign(order, data);
+        const stored = state.orders.find((item) => item.id === order.id);
+        if (stored) Object.assign(stored, data);
+        row.querySelector(".order-summary-status").textContent = `${order.status} · ${order.payment_status}`;
+        form.elements.status.value = order.status;
+        form.elements.payment_status.value = order.payment_status;
+        row.dataset.dirty = "false";
+        message.textContent = "Saved. Order notifications have been queued.";
+        const tab = document.querySelector('[data-tab="orders"]');
+        tab.textContent = `Orders (${state.orders.filter((item) => item.status === "placed").length} new)`;
+        filter();
+      } catch (error) {
+        message.textContent = error.code === "PGRST116" ? "This order changed elsewhere. Refresh orders before saving again." : "Could not save changes. " + error.message;
+      } finally {
+        controls.forEach((control) => control.disabled = false);
+        save.disabled = reset.disabled = !dirty();
+      }
+    };
+  });
+}
 function renderPanel(tab, products) {
   const panel = document.querySelector("#panel");
   if (tab === "account") {
@@ -542,29 +631,7 @@ function renderPanel(tab, products) {
     return;
   }
   if (tab === "orders") {
-    panel.innerHTML = `<h3>Latest 100 orders</h3><button id="refresh">Refresh orders</button>${state.orders.map((o) => `<article class="order"><div class="section-heading"><h3>${e(o.order_number)}</h3><span>${e(o.status)} · ${e(o.payment_status)}</span></div><p>${e(o.customer.name)} · ${e(o.customer.email)} · ${e(o.customer.phone)}</p><p>${e(o.customer.address)}</p><p>${e(o.customer.note)}</p><p>Preferred payment: ${e(paymentLabels[o.payment_method] || o.payment_method)}</p><a href="${e(trackingUrl(o.payment_token))}" target="_blank" rel="noopener">Open order tracking & cancellation ↗</a><p>${e(o.cancellation_reason || "")}</p><a href="${e(paymentPageUrl(o.payment_token, location.href))}" target="_blank" rel="noopener">Open order payment page & QR ↗</a><ul>${o.items.map((i) => `<li>${e(i.name)} × ${i.quantity} · ${money(i.unit_price)}</li>`).join("")}</ul><strong>Product subtotal: ${money(o.total)}</strong><p class="muted">Delivery charges must be confirmed separately before requesting payment.</p><label>Order status<select data-status="${o.id}">${["placed", "confirmed", "dispatched", "delivered", "cancelled"].map((s) => `<option ${o.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label><label>Payment<select data-payment="${o.id}">${["pending", "received", "refunded"].map((s) => `<option ${o.payment_status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label></article>`).join("") || "<p>No orders yet.</p>"}`;
-    panel.querySelector("#refresh").onclick = owner;
-    for (const kind of ["status", "payment"])
-      panel.querySelectorAll(`[data-${kind}]`).forEach(
-        (s) =>
-          (s.onchange = async () => {
-            s.disabled = true;
-            const field = kind === "status" ? "status" : "payment_status";
-            const { error } = await db
-              .from("orders")
-              .update({ [field]: s.value })
-              .eq("id", s.dataset[kind]);
-            s.disabled = false;
-            if (error) {
-              toast(error.message);
-              owner();
-            } else {
-              state.orders.find((o) => o.id === s.dataset[kind])[field] =
-                s.value;
-              toast("Order updated.");
-            }
-          }),
-      );
+    renderOrders(panel);
     return;
   }
   if (tab === "reviews") {
@@ -646,8 +713,21 @@ function renderPanel(tab, products) {
     };
     return;
   }
-  panel.innerHTML = `<h3 id="edit-title">Add a product</h3><form id="product-form"><input type="hidden" name="id"><label>Name<input name="name" required maxlength="150"></label><label>Category<input name="category" required maxlength="60"></label><label>Description<textarea name="description" required maxlength="3000"></textarea></label><div class="form-row"><label>Original price<input name="price" type="number" min="1" step="0.01" required></label><label>Discount price (optional)<input name="sale_price" type="number" min="1" step="0.01"></label></div><label>Offer<input name="offer" maxlength="500"></label><label>Upload photos (JPEG, PNG, WebP; up to 5 MB each)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><label class="check"><input name="active" type="checkbox" checked> Visible in store</label><button class="primary">Save product</button><button type="button" id="new-product">New product</button><div class="product-management" hidden><button type="button" id="toggle-product"></button><button type="button" id="delete-product" class="danger">Delete product</button><p class="muted">Deactivate hides the product until you reactivate it. Delete permanently removes the listing. Past orders keep their recorded product details.</p></div><p id="product-error" role="alert"></p></form><section class="owner-collection" aria-labelledby="collection-title"><h3 id="collection-title">Your collection</h3><p class="muted">Select a product to edit its details above.</p><div class="product-list">${products.map((p) => `<button type="button" class="owner-product" data-edit="${e(p.id)}" aria-pressed="false"><span class="owner-product-image">${p.images?.[0] ? img(p.images[0], p.name) : ""}<span class="image-fallback" aria-hidden="true">✧</span></span><span class="owner-product-name">${e(p.name)}</span><span class="owner-product-price">${money(priceOf(p))}</span>${p.active ? "" : '<span class="owner-product-status">Hidden</span>'}</button>`).join("") || '<p class="muted">Your products will appear here after you add them.</p>'}</div></section>`;
+  panel.innerHTML = `<h3 id="edit-title">Add a product</h3><form id="product-form"><input type="hidden" name="id"><label>Name<input name="name" required maxlength="150"></label><label>Article code (optional)<input name="article" maxlength="80" placeholder="e.g. SC-CLOCK-001"></label><label>Category<input name="category" required maxlength="60"></label><label>Description<textarea name="description" required maxlength="3000"></textarea></label><div class="form-row"><label>Original price<input name="price" type="number" min="1" step="0.01" required></label><label>Discount price (optional)<input name="sale_price" type="number" min="1" step="0.01"></label></div><label>Offer<input name="offer" maxlength="500"></label><label>Upload photos (JPEG, PNG, WebP; up to 5 MB each)<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><label class="check"><input name="active" type="checkbox" checked> Visible in store</label><button class="primary">Save product</button><button type="button" id="new-product">New product</button><div class="product-management" hidden><button type="button" id="toggle-product"></button><button type="button" id="delete-product" class="danger">Delete product</button><p class="muted">Deactivate hides the product until you reactivate it. Delete permanently removes the listing. Past orders keep their recorded product details.</p></div><p id="product-error" role="alert"></p></form><section class="owner-collection" aria-labelledby="collection-title"><h3 id="collection-title">Your collection</h3><p class="muted">Select a product to edit its details above.</p><label>Search products<input id="product-search" type="search" placeholder="Search by product name or article code"></label><p id="product-results" class="muted" role="status"></p><div class="product-list">${products.map((p) => `<button type="button" class="owner-product" data-edit="${e(p.id)}" aria-pressed="false"><span class="owner-product-image">${p.images?.[0] ? img(p.images[0], p.name) : ""}<span class="image-fallback" aria-hidden="true">✧</span></span><span class="owner-product-name">${e(p.name)}</span>${p.article ? `<span class="owner-product-article">Article: ${e(p.article)}</span>` : ""}<span class="owner-product-price">${money(priceOf(p))}</span>${p.active ? "" : '<span class="owner-product-status">Hidden</span>'}</button>`).join("") || '<p class="muted">Your products will appear here after you add them.</p>'}</div></section>`;
   const form = panel.querySelector("form");
+  const productSearch = panel.querySelector("#product-search");
+  const filterProducts = () => {
+    const query = productSearch.value.trim().toLowerCase();
+    let shown = 0;
+    panel.querySelectorAll("[data-edit]").forEach((button) => {
+      const product = products.find((item) => item.id === button.dataset.edit);
+      button.hidden = !`${product.name} ${product.article || ""}`.toLowerCase().includes(query);
+      if (!button.hidden) shown++;
+    });
+    panel.querySelector("#product-results").textContent = `${shown} of ${products.length} products${shown ? "" : " — no matching products"}`;
+  };
+  productSearch.oninput = filterProducts;
+  filterProducts();
   panel.querySelector("#new-product").onclick = () => {
     form.reset();
     form.elements.id.value = "";
@@ -671,6 +751,7 @@ function renderPanel(tab, products) {
           "id",
           "name",
           "category",
+          "article",
           "description",
           "price",
           "sale_price",
@@ -765,6 +846,9 @@ function renderPanel(tab, products) {
         images,
         active: form.elements.active.checked,
       };
+      const article = values.article.trim();
+      const previous = products.find((product) => product.id === values.id);
+      if (article || (previous && "article" in previous)) payload.article = article;
       const query = values.id
         ? db.from("products").update(payload).eq("id", values.id)
         : db.from("products").insert(payload);
@@ -774,7 +858,9 @@ function renderPanel(tab, products) {
       await owner();
       toast("Product saved.");
     } catch (err) {
-      panel.querySelector("#product-error").textContent = err.message;
+      panel.querySelector("#product-error").textContent = /article/i.test(err.message) && ["PGRST204", "42703"].includes(err.code)
+        ? "Article codes need the one-time database update in supabase/article-upgrade.sql. Run it in Supabase SQL Editor, then save again."
+        : err.message;
     } finally {
       button.disabled = false;
     }

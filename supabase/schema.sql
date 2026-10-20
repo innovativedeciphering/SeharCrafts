@@ -5,6 +5,7 @@ alter table public.owners enable row level security;
 create function public.is_owner() returns boolean language sql stable security definer set search_path = '' as $$ select exists(select 1 from public.owners where user_id = auth.uid()); $$;
 create table public.products (
  id uuid primary key default gen_random_uuid(), name text not null check(length(name) between 1 and 150),
+ article text not null default '' check(length(article)<=80),
  category text not null, description text not null default '', price numeric(12,2) not null check(price>0),
  sale_price numeric(12,2) check(sale_price>0 and sale_price<price), offer text not null default '',
  images text[] not null check(cardinality(images) between 1 and 8), active boolean not null default true, created_at timestamptz not null default now()

@@ -129,3 +129,9 @@ Tracking/cancellation database checks run as part of `npm run test:db`. The mock
 To change the owner's existing login email while preserving the user UUID and owner permissions, use **Owner studio → Account & login**. See [owner login email](docs/owner-login-email.md) for confirmation and redirect setup. Alert recipients and Gmail sending authorization are configured separately.
 
 Owner password recovery is available at `#/forgot-password`, with **Change password** under **Account & login**. Configure the exact Supabase recovery redirect from [owner account instructions](docs/owner-login-email.md) before using it. These Auth emails use Supabase Auth's mail configuration, independently of the order-alert worker.
+
+## Owner order rows and product article codes
+
+Orders are searchable within the latest 100 loaded orders by order number, customer contact details or product name, with saved order/payment status filters. Hover previews a row; clicking pins it open. Dropdowns are drafts: **Save changes** sends one update containing only changed fields. **Discard changes** sends nothing. Saving checks the previously loaded statuses, so an order changed elsewhere must be refreshed before it can be overwritten. Unchanged saves are disabled. Existing notification triggers queue alerts only after a saved database change.
+
+For an existing Supabase store, run `supabase/article-upgrade.sql` in SQL Editor once (safe to rerun), then reload the owner studio. New projects using `schema.sql` already have the column. The optional **Article code** field accepts up to 80 characters and appears on owner collection cards. The collection search matches product names and article codes, including hidden products. Blank article codes remain supported; this change does not require assigning codes to older products.
